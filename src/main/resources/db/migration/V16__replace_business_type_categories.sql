@@ -1,0 +1,41 @@
+-- Replaces the old 6-value BusinessType list (CATERING, PHOTOGRAPHY, VENUE,
+-- ENTERTAINMENT, DECORATION, OTHER) with the full event-services category
+-- list. No existing rows use business_type/primary_category yet (verified
+-- via psql before writing this migration), so this is a pure schema change,
+-- not a data migration.
+--
+-- Columns are widened to VARCHAR(50) first since several of the new names
+-- (e.g. LED_WALL_VISUAL_PROJECTION_RENTALS) exceed the old 20/30-char limits.
+
+ALTER TABLE users ALTER COLUMN business_type TYPE VARCHAR(50);
+ALTER TABLE users DROP CONSTRAINT users_business_type_check;
+ALTER TABLE users ADD CONSTRAINT users_business_type_check
+    CHECK (business_type IS NULL OR business_type IN (
+        'VENUE', 'CATERING', 'PHOTO_AND_VIDEO', 'PHOTO_BOOTHS', 'EVENT_COORDINATOR',
+        'EVENT_HOST', 'ENTERTAINMENT', 'PERFORMERS', 'DECORATION_PRODUCTION',
+        'LIGHTS_AND_SOUNDS', 'FOOD_CARTS_GRAZING', 'SOUVENIR_GIVEAWAYS',
+        'CAKE_AND_PASTRIES', 'INFLATABLES', 'MOBILE_PLAYGROUND', 'ARCADE',
+        'INVITATIONS', 'HAIR_AND_MAKEUP', 'BRIDAL_GOWN_DESIGNER', 'SUIT_RENTALS',
+        'WARDROBE_STYLISTS_DRESSERS', 'POWER_GENERATOR_SERVICES',
+        'LED_WALL_VISUAL_PROJECTION_RENTALS', 'STAGING_TRUSSING_FLOORING_RENTALS',
+        'TRANSPORT_SHUTTLE_FLEET_SERVICES', 'SECURITY_CROWD_CONTROL',
+        'INTERACTIVE_BAR_MIXOLOGY_SERVICES', 'LIVE_EVENT_PAINTERS_SKETCH_ARTISTS',
+        'SPECIAL_EFFECTS', 'FLORAL_SERVICES'));
+
+ALTER TABLE vendor_profiles ALTER COLUMN business_type TYPE VARCHAR(50);
+ALTER TABLE vendor_profiles DROP CONSTRAINT vendor_profiles_business_type_check;
+ALTER TABLE vendor_profiles ADD CONSTRAINT vendor_profiles_business_type_check
+    CHECK (business_type IS NULL OR business_type IN (
+        'VENUE', 'CATERING', 'PHOTO_AND_VIDEO', 'PHOTO_BOOTHS', 'EVENT_COORDINATOR',
+        'EVENT_HOST', 'ENTERTAINMENT', 'PERFORMERS', 'DECORATION_PRODUCTION',
+        'LIGHTS_AND_SOUNDS', 'FOOD_CARTS_GRAZING', 'SOUVENIR_GIVEAWAYS',
+        'CAKE_AND_PASTRIES', 'INFLATABLES', 'MOBILE_PLAYGROUND', 'ARCADE',
+        'INVITATIONS', 'HAIR_AND_MAKEUP', 'BRIDAL_GOWN_DESIGNER', 'SUIT_RENTALS',
+        'WARDROBE_STYLISTS_DRESSERS', 'POWER_GENERATOR_SERVICES',
+        'LED_WALL_VISUAL_PROJECTION_RENTALS', 'STAGING_TRUSSING_FLOORING_RENTALS',
+        'TRANSPORT_SHUTTLE_FLEET_SERVICES', 'SECURITY_CROWD_CONTROL',
+        'INTERACTIVE_BAR_MIXOLOGY_SERVICES', 'LIVE_EVENT_PAINTERS_SKETCH_ARTISTS',
+        'SPECIAL_EFFECTS', 'FLORAL_SERVICES'));
+
+-- primary_category (V8) has no CHECK constraint, just widen it to match.
+ALTER TABLE vendor_profiles ALTER COLUMN primary_category TYPE VARCHAR(50);

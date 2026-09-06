@@ -1,0 +1,76 @@
+package com.backend.eventsrus.controller;
+
+import com.backend.eventsrus.dto.QuotationRequest;
+import com.backend.eventsrus.dto.QuotationResponse;
+import com.backend.eventsrus.dto.QuotationRevisionRequest;
+import com.backend.eventsrus.dto.QuotationStatusEventResponse;
+import com.backend.eventsrus.service.QuotationService;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequiredArgsConstructor
+public class QuotationController {
+
+    private final QuotationService quotationService;
+
+    @PostMapping("/api/v1/events/{eventId}/vendors/{vendorUserId}/quotations")
+    public QuotationResponse requestQuotation(
+            @PathVariable Long eventId,
+            @PathVariable Long vendorUserId,
+            @Valid @RequestBody QuotationRequest request,
+            Authentication authentication) {
+        return quotationService.requestQuotation(
+                authentication.getName(), eventId, vendorUserId, request.getTargetDate(), request.getMessage(),
+                request.getPackageIds());
+    }
+
+    @GetMapping("/api/v1/events/{eventId}/quotations")
+    public List<QuotationResponse> listForEvent(@PathVariable Long eventId) {
+        return quotationService.listForEvent(eventId);
+    }
+
+    @GetMapping("/api/v1/vendors/me/quotations")
+    public List<QuotationResponse> listForVendor(Authentication authentication) {
+        return quotationService.listForVendor(authentication.getName());
+    }
+
+    @GetMapping("/api/v1/planners/me/quotations")
+    public List<QuotationResponse> listForPlanner(Authentication authentication) {
+        return quotationService.listForPlanner(authentication.getName());
+    }
+
+    @PostMapping(path = "/api/v1/vendors/me/quotations/{quotationId}/respond", consumes = "multipart/form-data")
+    public QuotationResponse respondWithPdf(
+            @PathVariable Long quotationId, @RequestPart MultipartFile pdf, Authentication authentication) {
+        return quotationService.respondWithPdf(authentication.getName(), quotationId, pdf);
+    }
+
+    @PutMapping("/api/v1/quotations/{quotationId}/decline")
+    public QuotationResponse decline(@PathVariable Long quotationId, Authentication authentication) {
+        return quotationService.declineQuotation(authentication.getName(), quotationId);
+    }
+
+    @PostMapping("/api/v1/quotations/{quotationId}/revise")
+    public QuotationResponse revise(
+            @PathVariable Long quotationId, @Valid @RequestBody QuotationRevisionRequest request, Authentication authentication) {
+        return quotationService.requestRevision(
+                authentication.getName(), quotationId, request.getTargetDate(), request.getMessage(), request.getPackageIds());
+    }
+
+    @GetMapping("/api/v1/quotations/{quotationId}/history")
+    public List<QuotationStatusEventResponse> history(@PathVariable Long quotationId, Authentication authentication) {
+        return quotationService.history(authentication.getName(), quotationId);
+    }
+}

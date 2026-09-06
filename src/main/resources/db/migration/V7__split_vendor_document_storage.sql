@@ -1,0 +1,1 @@
+ALTER TABLE vendor_profiles RENAME COLUMN business_permit_img_url TO business_permit_key;

@@ -1,0 +1,32 @@
+package com.backend.eventsrus.dto;
+
+import com.backend.eventsrus.enums.QuotationStatus;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+
+@Getter
+@Builder
+@AllArgsConstructor
+public class QuotationResponse {
+
+    private Long id;
+    private Long eventId;
+    private String eventName;
+    private Long vendorUserId;
+    private String vendorBusinessName;
+    private String vendorSlug;
+    private Long plannerUserId;
+    private LocalDate targetDate;
+    private String requestMessage;
+    private QuotationStatus status;
+    private String pdfUrl;
+    private Instant respondedAt;
+    private Instant createdAt;
+    private List<Long> packageIds;
+    private List<String> packageNames;
+    private Instant declinedAt;
+}
