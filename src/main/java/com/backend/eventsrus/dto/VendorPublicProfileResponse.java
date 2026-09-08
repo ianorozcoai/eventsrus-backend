@@ -37,4 +37,10 @@ public class VendorPublicProfileResponse {
     // AdminVendorController#getVerificationDocuments).
     private List<VendorLegalDocumentResponse> legalDocuments;
     private boolean identityVerified;
+
+    // Every photo across every package this vendor has, newest first - see
+    // VendorPackageImageService#listAllForStorefront. Each package's own
+    // photos are also available nested under packages[].images if a caller
+    // wants them grouped instead of flat.
+    private List<VendorPackageImageResponse> galleryImages;
 }

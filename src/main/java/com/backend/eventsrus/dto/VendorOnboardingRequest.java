@@ -44,4 +44,16 @@ public class VendorOnboardingRequest {
 
     @AssertTrue(message = "You must accept the vendor terms of service")
     private boolean acceptedTerms;
+
+    // Optional for now - eventsrus-ui (Flutter) doesn't send one yet (v3 has
+    // no native mobile SDK; would need a WebView-based token flow there), so
+    // this can't be @NotBlank without breaking the one real mobile signup
+    // path that already works. eventsrus-web's onboarding form does send a
+    // real one (see UserService#becomeVendor for the verify-if-present logic).
+    private String recaptchaToken;
+
+    // Another vendor's referral code, if this vendor signed up through a
+    // referral link (see VendorReferralService#attribute) - optional,
+    // silently ignored if missing/invalid, never blocks onboarding.
+    private String referralCode;
 }

@@ -10,15 +10,19 @@ import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.SupportTicket;
 import com.backend.eventsrus.model.SupportTicketMessage;
 import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.SupportTicketMessageRepository;
 import com.backend.eventsrus.repository.SupportTicketRepository;
 import com.backend.eventsrus.repository.UserRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * A planner or vendor's support ticket - either about a specific transaction
@@ -33,16 +37,20 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SupportTicketService {
 
+    private static final Duration PRESIGNED_URL_TTL = Duration.ofHours(1);
+    private static final Set<String> ALLOWED_ATTACHMENT_TYPES = Set.of("image/png", "image/jpeg");
+
     private final SupportTicketRepository supportTicketRepository;
     private final SupportTicketMessageRepository supportTicketMessageRepository;
     private final UserRepository userRepository;
     private final EventRepository eventRepository;
     private final NotificationService notificationService;
+    private final S3UploadService s3UploadService;
 
     @Transactional
     public SupportTicketResponse createTicket(
             String raiserEmail, String subject, TicketCategory category, String message,
-            Long relatedEventId, Long relatedBookingId, Long relatedQuotationId) {
+            Long relatedEventId, Long relatedBookingId, Long relatedQuotationId, MultipartFile attachment) {
         User raiser = requireUser(raiserEmail);
 
         SupportTicket ticket = supportTicketRepository.save(SupportTicket.builder()
@@ -55,7 +63,7 @@ public class SupportTicketService {
                 .relatedQuotationId(relatedQuotationId)
                 .build());
 
-        postMessage(ticket, raiser, message);
+        postMessage(ticket, raiser, message, attachment);
 
         // No admin UI exists yet to pick this up, but every admin account
         // that does exist should still hear about it.
@@ -74,7 +82,7 @@ public class SupportTicketService {
      * wasn't actually fixed, not a fresh unrelated question.
      */
     @Transactional
-    public SupportTicketResponse reply(String requesterEmail, Long ticketId, String message) {
+    public SupportTicketResponse reply(String requesterEmail, Long ticketId, String message, MultipartFile attachment) {
         User requester = requireUser(requesterEmail);
         SupportTicket ticket = supportTicketRepository.findById(ticketId)
                 .orElseThrow(() -> new IllegalStateException("Ticket not found: " + ticketId));
@@ -86,7 +94,7 @@ public class SupportTicketService {
             throw new IllegalStateException("This ticket is closed - raise a new one instead: " + ticketId);
         }
 
-        postMessage(ticket, requester, message);
+        postMessage(ticket, requester, message, attachment);
 
         if (isRaiser) {
             if (ticket.getStatus() == TicketStatus.RESOLVED) {
@@ -142,6 +150,21 @@ public class SupportTicketService {
                 .toList();
     }
 
+    /**
+     * Admin's "Vendor complaints" / "Planner complaints" split - every
+     * ticket raised by a user of that role, not just the caller's own.
+     * raiserRole null means every ticket, any raiser. Reachable only via
+     * AdminSupportTicketController, which SecurityConfig already gates to
+     * ROLE_ADMIN - no separate check needed here.
+     */
+    @Transactional(readOnly = true)
+    public List<SupportTicketResponse> listForAdmin(Role raiserRole) {
+        List<SupportTicket> tickets = raiserRole == null
+                ? supportTicketRepository.findAllByOrderByCreatedAtDesc()
+                : supportTicketRepository.findByRaisedBy_RoleOrderByCreatedAtDesc(raiserRole);
+        return tickets.stream().map(this::toResponse).toList();
+    }
+
     @Transactional(readOnly = true)
     public SupportTicketResponse getTicket(String requesterEmail, Long ticketId) {
         return toResponse(requireVisibleTicket(requesterEmail, ticketId));
@@ -166,12 +189,26 @@ public class SupportTicketService {
         return ticket;
     }
 
-    private SupportTicketMessage postMessage(SupportTicket ticket, User sender, String body) {
+    private SupportTicketMessage postMessage(SupportTicket ticket, User sender, String body, MultipartFile attachment) {
+        String attachmentKey = null;
+        if (attachment != null && !attachment.isEmpty()) {
+            if (!ALLOWED_ATTACHMENT_TYPES.contains(attachment.getContentType())) {
+                throw new InvalidFileTypeException("Only PNG or JPEG screenshots are accepted as an attachment");
+            }
+            attachmentKey = s3UploadService
+                    .upload(attachment, attachmentKeyPrefix(ticket.getId()), S3UploadService.Visibility.PRIVATE)
+                    .key();
+        }
         return supportTicketMessageRepository.save(SupportTicketMessage.builder()
                 .ticket(ticket)
                 .sender(sender)
                 .body(body)
+                .attachmentKey(attachmentKey)
                 .build());
+    }
+
+    private String attachmentKeyPrefix(Long ticketId) {
+        return "support-tickets/" + ticketId + "/attachment";
     }
 
     private User requireUser(String email) {
@@ -198,6 +235,8 @@ public class SupportTicketService {
                 .status(ticket.getStatus())
                 .raisedByUserId(ticket.getRaisedBy().getId())
                 .raisedByName(displayName(ticket.getRaisedBy()))
+                .raisedByEmail(ticket.getRaisedBy().getEmail())
+                .raisedByRole(ticket.getRaisedBy().getRole())
                 .relatedEventId(ticket.getRelatedEventId())
                 .relatedEventName(relatedEvent != null ? relatedEvent.getName() : null)
                 .relatedBookingId(ticket.getRelatedBookingId())
@@ -219,6 +258,9 @@ public class SupportTicketService {
                 .senderName(displayName(message.getSender()))
                 .senderRole(message.getSender().getRole())
                 .body(message.getBody())
+                .attachmentUrl(message.getAttachmentKey() != null
+                        ? s3UploadService.presignedUrl(message.getAttachmentKey(), PRESIGNED_URL_TTL)
+                        : null)
                 .createdAt(message.getCreatedAt())
                 .build();
     }

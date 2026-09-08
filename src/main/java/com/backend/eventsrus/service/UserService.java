@@ -8,21 +8,25 @@ import com.backend.eventsrus.dto.VendorSettingsRequest;
 import com.backend.eventsrus.dto.VendorSettingsResponse;
 import com.backend.eventsrus.common.TermsConstants;
 import com.backend.eventsrus.enums.BillingSource;
+import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.LegalDocumentType;
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SubscriptionStatus;
 import com.backend.eventsrus.exception.DuplicateUserException;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
+import com.backend.eventsrus.exception.RecaptchaVerificationException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.model.VendorSubscription;
+import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import com.backend.eventsrus.repository.VendorSubscriptionRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +45,12 @@ public class UserService {
     // without a code change. See application.properties.
     @Value("${app.vendor-trial-months:6}")
     private int vendorTrialMonths;
-    private static final Duration PRESIGNED_URL_TTL = Duration.ofMinutes(10);
+    // Was 10 minutes - too short for a "View current file" link sitting on
+    // a settings page a vendor might leave open for a while before
+    // clicking it; the link would 403 as "ExpiredRequest" by then. An hour
+    // matches this app's own JWT expiration (jwt.expiration-ms), a
+    // reasonable balance for a private-document link.
+    private static final Duration PRESIGNED_URL_TTL = Duration.ofHours(1);
 
     private final UserRepository userRepository;
     private final VendorProfileRepository vendorProfileRepository;
@@ -49,6 +58,9 @@ public class UserService {
     private final S3UploadService s3UploadService;
     private final VendorLegalDocumentService vendorLegalDocumentService;
     private final VendorBillingHistoryService vendorBillingHistoryService;
+    private final RecaptchaVerificationService recaptchaVerificationService;
+    private final VendorReferralService vendorReferralService;
+    private final EventRepository eventRepository;
 
     public User findOrCreateFromGoogle(GoogleUserInfo googleUser) {
         return userRepository.findByGoogleId(googleUser.googleId())
@@ -76,6 +88,17 @@ public class UserService {
             String email,
             VendorOnboardingRequest request,
             VendorUploadFiles files) {
+        // Verify-if-present, not yet required: eventsrus-web's onboarding form
+        // sends a real reCAPTCHA v3 token and gets checked for real; Flutter
+        // doesn't send one yet (no native v3 SDK - would need a WebView token
+        // flow), so an absent token is allowed through rather than breaking
+        // the one real mobile signup path that already works. Tighten this to
+        // @NotBlank + always-required once Flutter can supply one too.
+        if (request.getRecaptchaToken() != null && !request.getRecaptchaToken().isBlank()
+                && !recaptchaVerificationService.verify(request.getRecaptchaToken())) {
+            throw new RecaptchaVerificationException("reCAPTCHA verification failed. Please try again.");
+        }
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + email));
 
@@ -115,6 +138,9 @@ public class UserService {
         if (profile.getSlug() == null) {
             profile.setSlug(generateUniqueSlug(request.getBusinessName()));
         }
+        if (profile.getReferralCode() == null) {
+            profile.setReferralCode(vendorReferralService.generateUniqueReferralCode());
+        }
         vendorProfileRepository.save(profile);
 
         // Any number of business-registration documents can be attached at
@@ -142,6 +168,12 @@ public class UserService {
         user.setTermsVersion(TermsConstants.CURRENT_VERSION);
         userRepository.save(user);
 
+        // No-ops silently on a missing/invalid/self/duplicate code - see
+        // VendorReferralService#attribute's Javadoc. Safe to call on every
+        // becomeVendor call (including a re-submit by an already-onboarded
+        // vendor) since it only ever attributes once per referred user.
+        vendorReferralService.attribute(user, request.getReferralCode());
+
         if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
             Instant trialEnd = now.plus(vendorTrialMonths * 30L, ChronoUnit.DAYS);
@@ -166,9 +198,113 @@ public class UserService {
                 .orElseThrow(() -> new IllegalStateException("Vendor profile not found for user: " + userId));
 
         return new VendorVerificationDocuments(
+                profile.getUser().getId(),
+                profile.getBusinessName(),
+                profile.getOwnerName(),
                 s3UploadService.presignedUrl(profile.getIdCardKey(), PRESIGNED_URL_TTL),
                 s3UploadService.presignedUrl(profile.getSelfieKey(), PRESIGNED_URL_TTL),
-                vendorLegalDocumentService.listForVendor(profile.getUser().getEmail()));
+                vendorLegalDocumentService.listForVendor(profile.getUser().getEmail()),
+                profile.isVerified(),
+                profile.getVerifiedAt(),
+                profile.getVerifiedByAdmin());
+    }
+
+    /** The admin verification review queue - every vendor, regardless of review state. */
+    @Transactional(readOnly = true)
+    public List<AdminVendorListItem> listVendorsForAdmin() {
+        return vendorProfileRepository.findAll().stream()
+                .map(profile -> new AdminVendorListItem(
+                        profile.getUser().getId(),
+                        profile.getBusinessName(),
+                        profile.getOwnerName(),
+                        profile.getContactEmail(),
+                        profile.getPhoneNumber(),
+                        profile.getBusinessType(),
+                        profile.getSlug(),
+                        profile.getCity(),
+                        profile.getState(),
+                        // Copied out (not the lazy collection reference
+                        // itself) - Jackson serializes the response after
+                        // this @Transactional method has already returned
+                        // and the Hibernate session is closed, so a lazy
+                        // List reference here would throw
+                        // LazyInitializationException at serialization time
+                        // instead of loading cleanly right now.
+                        List.copyOf(profile.getOperatingAreas()),
+                        profile.getIdCardKey() != null,
+                        profile.getSelfieKey() != null,
+                        vendorLegalDocumentService.listForVendor(profile.getUser().getEmail()).size(),
+                        profile.isVerified(),
+                        profile.getVerifiedAt(),
+                        profile.getVerifiedByAdmin(),
+                        profile.getCreatedAt()))
+                .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
+                .toList();
+    }
+
+    /** The admin Planner directory - every planner, newest first. */
+    @Transactional(readOnly = true)
+    public List<AdminPlannerListItem> listPlannersForAdmin() {
+        return userRepository.findByRole(Role.PLANNER).stream()
+                .map(this::toAdminPlannerListItem)
+                .sorted(java.util.Comparator.comparing(AdminPlannerListItem::joinedAt).reversed())
+                .toList();
+    }
+
+    /** One planner's profile, for the admin module's read-only detail view. */
+    @Transactional(readOnly = true)
+    public AdminPlannerListItem getPlannerForAdmin(Long userId) {
+        User planner = userRepository.findById(userId)
+                .filter(u -> u.getRole() == Role.PLANNER)
+                .orElseThrow(() -> new IllegalStateException("Planner not found: " + userId));
+        return toAdminPlannerListItem(planner);
+    }
+
+    private AdminPlannerListItem toAdminPlannerListItem(User planner) {
+        return new AdminPlannerListItem(
+                planner.getId(),
+                planner.getFirstName(),
+                planner.getLastName(),
+                planner.getEmail(),
+                planner.getMobileNumber(),
+                planner.getCity(),
+                planner.getState(),
+                planner.getCreatedAt(),
+                (int) eventRepository.countByPlannerId(planner.getId()));
+    }
+
+    public record AdminPlannerListItem(
+            Long id,
+            String firstName,
+            String lastName,
+            String email,
+            String mobileNumber,
+            String city,
+            String state,
+            Instant joinedAt,
+            int eventsCount) {
+    }
+
+    /** Marks a vendor verified - the ONLY thing that puts the "Verified Vendor" badge on their storefront. */
+    @Transactional
+    public void verifyVendor(Long userId, String adminUsername) {
+        VendorProfile profile = vendorProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Vendor profile not found for user: " + userId));
+        profile.setVerified(true);
+        profile.setVerifiedAt(Instant.now());
+        profile.setVerifiedByAdmin(adminUsername);
+        vendorProfileRepository.save(profile);
+    }
+
+    /** Reverses a verification - e.g. a document turns out to be fraudulent after the fact. */
+    @Transactional
+    public void unverifyVendor(Long userId) {
+        VendorProfile profile = vendorProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Vendor profile not found for user: " + userId));
+        profile.setVerified(false);
+        profile.setVerifiedAt(null);
+        profile.setVerifiedByAdmin(null);
+        vendorProfileRepository.save(profile);
     }
 
     @Transactional(readOnly = true)
@@ -238,8 +374,14 @@ public class UserService {
         profile.setPostalCode(request.getPostalCode());
         profile.setCountry(request.getCountry());
 
-        profile.setPrimaryCategory(request.getPrimaryCategory());
+        // primaryCategory has no separate UI/input of its own anymore -
+        // businessType covers the same idea, so this just keeps the two in
+        // sync server-side rather than leaving primaryCategory stuck at
+        // whatever it was (or null) forever now that nothing sets it.
+        // Nothing else in the backend actually reads primaryCategory today.
+        profile.setPrimaryCategory(request.getBusinessType());
         profile.setMaxGuestCapacity(request.getMaxGuestCapacity());
+        profile.setMaxCustomersPerDay(request.getMaxCustomersPerDay());
         profile.setBasePrice(request.getBasePrice());
         profile.setLeadTimeDays(request.getLeadTimeDays());
         profile.setStorefrontOverview(request.getStorefrontOverview());
@@ -305,6 +447,7 @@ public class UserService {
 
     private VendorSettingsResponse toSettingsResponse(VendorProfile profile) {
         return VendorSettingsResponse.builder()
+                .slug(profile.getSlug())
                 .businessName(profile.getBusinessName())
                 .ownerName(profile.getOwnerName())
                 .businessType(profile.getBusinessType())
@@ -319,13 +462,20 @@ public class UserService {
                 .logoImageUrl(profile.getLogoImageUrl())
                 .idCardUrl(s3UploadService.presignedUrl(profile.getIdCardKey(), PRESIGNED_URL_TTL))
                 .selfieUrl(s3UploadService.presignedUrl(profile.getSelfieKey(), PRESIGNED_URL_TTL))
+                .verified(profile.isVerified())
+                .verifiedAt(profile.getVerifiedAt())
                 .primaryCategory(profile.getPrimaryCategory())
                 .maxGuestCapacity(profile.getMaxGuestCapacity())
+                .maxCustomersPerDay(profile.getMaxCustomersPerDay())
                 .basePrice(profile.getBasePrice())
                 .leadTimeDays(profile.getLeadTimeDays())
                 .storefrontOverview(profile.getStorefrontOverview())
-                .operatingAreas(profile.getOperatingAreas())
-                .cateredEventTypes(profile.getCateredEventTypes())
+                // Both are LAZY @ElementCollections - materialized into a
+                // plain list here, inside this @Transactional method, since
+                // spring.jpa.open-in-view=false means the Hibernate session
+                // is gone by the time this response is serialized.
+                .operatingAreas(new ArrayList<>(profile.getOperatingAreas()))
+                .cateredEventTypes(new ArrayList<>(profile.getCateredEventTypes()))
                 .cancellationPolicyUrl(profile.getCancellationPolicyUrl())
                 .refundTermsUrl(profile.getRefundTermsUrl())
                 .paymentInstructions(profile.getPaymentInstructions())
@@ -390,9 +540,35 @@ public class UserService {
     }
 
     public record VendorVerificationDocuments(
+            Long vendorUserId,
+            String businessName,
+            String ownerName,
             String idCardUrl,
             String selfieUrl,
-            List<VendorLegalDocumentResponse> legalDocuments) {
+            List<VendorLegalDocumentResponse> legalDocuments,
+            boolean verified,
+            Instant verifiedAt,
+            String verifiedByAdmin) {
+    }
+
+    public record AdminVendorListItem(
+            Long vendorUserId,
+            String businessName,
+            String ownerName,
+            String contactEmail,
+            String phoneNumber,
+            BusinessType businessType,
+            String slug,
+            String city,
+            String state,
+            List<String> operatingAreas,
+            boolean hasIdCard,
+            boolean hasSelfie,
+            int legalDocumentCount,
+            boolean verified,
+            Instant verifiedAt,
+            String verifiedByAdmin,
+            Instant createdAt) {
     }
 
     // businessPermit is gone - legal documents (any number of them) are now

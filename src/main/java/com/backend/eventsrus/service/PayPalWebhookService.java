@@ -22,6 +22,7 @@ public class PayPalWebhookService {
     private final VendorSubscriptionEventRepository vendorSubscriptionEventRepository;
     private final PayPalSubscriptionClient payPalSubscriptionClient;
     private final VendorBillingHistoryService vendorBillingHistoryService;
+    private final VendorReferralService vendorReferralService;
 
     @Transactional
     public void handle(JsonNode event) {
@@ -73,6 +74,10 @@ public class PayPalWebhookService {
                 subscription.setStatus(SubscriptionStatus.ACTIVE);
                 refreshPeriodEndFromPayPal(subscription);
                 recordPaymentHistory(subscription, resource, periodStart);
+                // No-op unless this vendor has a still-PENDING referral (see
+                // VendorReferralService#convertIfPending) - renewal payments
+                // fire this same event but never re-convert or re-award.
+                vendorReferralService.convertIfPending(subscription.getUser().getId());
             }
             case "BILLING.SUBSCRIPTION.CANCELLED" -> subscription.setStatus(SubscriptionStatus.CANCELLED);
             // Deliberately NOT touching currentPeriodEnd here — the vendor keeps

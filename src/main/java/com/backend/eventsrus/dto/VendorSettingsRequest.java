@@ -29,6 +29,7 @@ public class VendorSettingsRequest {
     // Tab 2 — Service Scope & Metrics
     private BusinessType primaryCategory;
     private Integer maxGuestCapacity;
+    private Integer maxCustomersPerDay;
     private BigDecimal basePrice;
     private Integer leadTimeDays;
     private String storefrontOverview;

@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.dto.VendorPackageRequest;
 import com.backend.eventsrus.dto.VendorPackageResponse;
 import com.backend.eventsrus.model.User;
@@ -9,6 +10,7 @@ import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorPackageRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ public class VendorPackageService {
     private final VendorPackageRepository vendorPackageRepository;
     private final VendorProfileRepository vendorProfileRepository;
     private final UserRepository userRepository;
+    private final VendorPackageImageService vendorPackageImageService;
 
     @Transactional
     public VendorPackageResponse createPackage(String vendorEmail, VendorPackageRequest request) {
@@ -84,8 +87,15 @@ public class VendorPackageService {
     @Transactional(readOnly = true)
     public List<VendorPackageResponse> listForVendor(String vendorEmail) {
         VendorProfile profile = requireProfile(vendorEmail);
-        return vendorPackageRepository.findByVendorProfileIdOrderByCreatedAtDesc(profile.getId()).stream()
-                .map(this::toResponse)
+        List<VendorPackage> packages = vendorPackageRepository.findByVendorProfileIdOrderByCreatedAtDesc(profile.getId());
+        // One batched image query for the whole list, not one per package -
+        // this used to be the slow part of both loading and (since Add
+        // Package redirects straight into this same list) creating a
+        // package, and it only gets worse as a vendor adds more packages.
+        Map<Long, List<VendorPackageImageResponse>> imagesByPackageId =
+                vendorPackageImageService.listForPackages(packages.stream().map(VendorPackage::getId).toList());
+        return packages.stream()
+                .map(pkg -> toResponse(pkg, imagesByPackageId.getOrDefault(pkg.getId(), List.of())))
                 .toList();
     }
 
@@ -102,7 +112,12 @@ public class VendorPackageService {
                 .orElseThrow(() -> new IllegalStateException("Vendor profile not found for user: " + user.getId()));
     }
 
+    /** Single-package callers (create/update/setActive) - one package, one query is fine here. */
     private VendorPackageResponse toResponse(VendorPackage pkg) {
+        return toResponse(pkg, vendorPackageImageService.listForPackage(pkg.getId()));
+    }
+
+    private VendorPackageResponse toResponse(VendorPackage pkg, List<VendorPackageImageResponse> images) {
         return VendorPackageResponse.builder()
                 .id(pkg.getId())
                 .name(pkg.getName())
@@ -113,6 +128,7 @@ public class VendorPackageService {
                 .minPrice(pkg.getMinPrice())
                 .maxPrice(pkg.getMaxPrice())
                 .active(pkg.isActive())
+                .images(images)
                 .build();
     }
 }

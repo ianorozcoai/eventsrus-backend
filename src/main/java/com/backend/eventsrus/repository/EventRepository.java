@@ -9,4 +9,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByPlannerIdOrderByCreatedAtDesc(Long plannerId);
 
     List<Event> findByPlannerIdAndSavedTrueOrderByCreatedAtDesc(Long plannerId);
+
+    long countByPlannerId(Long plannerId);
 }

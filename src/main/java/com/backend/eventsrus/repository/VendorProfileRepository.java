@@ -16,6 +16,10 @@ public interface VendorProfileRepository extends JpaRepository<VendorProfile, Lo
 
     boolean existsBySlug(String slug);
 
+    Optional<VendorProfile> findByReferralCode(String referralCode);
+
+    boolean existsByReferralCode(String referralCode);
+
     List<VendorProfile> findByBusinessTypeAndCityIgnoreCase(BusinessType businessType, String city);
 
     List<VendorProfile> findByCityIgnoreCase(String city);

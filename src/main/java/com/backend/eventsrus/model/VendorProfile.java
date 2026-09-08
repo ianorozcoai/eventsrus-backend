@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
@@ -40,6 +41,13 @@ public class VendorProfile extends BaseEntity {
 
     @Column(nullable = false, unique = true)
     private String slug;
+
+    // Vendor referral program - generated once at first onboarding (see
+    // UserService#becomeVendor, same lazy-generate-if-null pattern as slug
+    // above). Shared with another prospective vendor as
+    // {app.frontend-base-url}/vendor/?ref=CODE - see VendorReferralService.
+    @Column(name = "referral_code", unique = true)
+    private String referralCode;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -74,6 +82,21 @@ public class VendorProfile extends BaseEntity {
     @Column(name = "selfie_key")
     private String selfieKey;
 
+    // Manual admin review, not automatic - uploading documents at
+    // onboarding used to be enough to show a "Verified Vendor" badge
+    // (derived purely from idCardKey/selfieKey being non-null), which meant
+    // nobody at EventsRUs ever actually looked at what was submitted. See
+    // AdminVendorController for the real review workflow.
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean verified = false;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    @Column(name = "verified_by_admin")
+    private String verifiedByAdmin;
+
     // Business-registration paperwork (DTI/SEC/Mayor's Permit/Barangay
     // Clearance/BIR/...) now lives in VendorLegalDocument, a child
     // collection - a business can reasonably have several of these at once,
@@ -93,6 +116,11 @@ public class VendorProfile extends BaseEntity {
 
     @Column(name = "max_guest_capacity")
     private Integer maxGuestCapacity;
+
+    // Distinct from maxGuestCapacity above (headcount per event) - this is
+    // how many separate client bookings the vendor can take on in one day.
+    @Column(name = "max_customers_per_day")
+    private Integer maxCustomersPerDay;
 
     @Column(name = "base_price")
     private BigDecimal basePrice;

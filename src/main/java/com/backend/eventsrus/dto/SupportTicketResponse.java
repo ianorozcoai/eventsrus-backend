@@ -1,5 +1,6 @@
 package com.backend.eventsrus.dto;
 
+import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.TicketCategory;
 import com.backend.eventsrus.enums.TicketStatus;
 import java.time.Instant;
@@ -18,6 +19,8 @@ public class SupportTicketResponse {
     private TicketStatus status;
     private Long raisedByUserId;
     private String raisedByName;
+    private String raisedByEmail;
+    private Role raisedByRole;
     private Long relatedEventId;
     private String relatedEventName;
     private Long relatedBookingId;

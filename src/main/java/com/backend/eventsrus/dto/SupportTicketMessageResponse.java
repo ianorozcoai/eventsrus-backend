@@ -16,5 +16,6 @@ public class SupportTicketMessageResponse {
     private String senderName;
     private Role senderRole;
     private String body;
+    private String attachmentUrl;
     private Instant createdAt;
 }

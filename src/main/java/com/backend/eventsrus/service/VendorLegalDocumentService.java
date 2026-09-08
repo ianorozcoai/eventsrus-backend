@@ -29,7 +29,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class VendorLegalDocumentService {
 
-    private static final Duration PRESIGNED_URL_TTL = Duration.ofMinutes(15);
+    // Was 15 minutes - too short for a "View file" link sitting on a
+    // settings/storefront page a viewer might leave open a while before
+    // clicking it (see UserService's own PRESIGNED_URL_TTL for the same fix).
+    private static final Duration PRESIGNED_URL_TTL = Duration.ofHours(1);
 
     private final VendorLegalDocumentRepository vendorLegalDocumentRepository;
     private final VendorProfileRepository vendorProfileRepository;

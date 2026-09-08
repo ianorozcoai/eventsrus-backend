@@ -22,43 +22,64 @@ public class S3UploadService {
     private final S3Presigner s3Presigner;
     private final String publicBucket;
     private final String privateBucket;
-    private final String region;
+    private final String publicBaseUrl;
 
     public S3UploadService(
             S3Client s3Client,
             S3Presigner s3Presigner,
-            @Value("${aws.s3.public-bucket}") String publicBucket,
-            @Value("${aws.s3.private-bucket}") String privateBucket,
-            @Value("${aws.s3.region}") String region) {
+            @Value("${r2.public-bucket}") String publicBucket,
+            @Value("${r2.private-bucket}") String privateBucket,
+            @Value("${r2.public-base-url}") String publicBaseUrl) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.publicBucket = publicBucket;
         this.privateBucket = privateBucket;
-        this.region = region;
+        this.publicBaseUrl = publicBaseUrl;
     }
+
+    private static final int MAX_UPLOAD_ATTEMPTS = 2;
 
     public UploadResult upload(MultipartFile file, String keyPrefix, Visibility visibility) {
         String extension = extractExtension(file.getOriginalFilename());
         String key = "%s-%s%s".formatted(keyPrefix, UUID.randomUUID(), extension);
         String bucket = bucketFor(visibility);
 
-        try (InputStream in = file.getInputStream()) {
-            s3Client.putObject(
-                    PutObjectRequest.builder()
-                            .bucket(bucket)
-                            .key(key)
-                            .contentType(file.getContentType())
-                            .build(),
-                    RequestBody.fromInputStream(in, file.getSize()));
-        } catch (IOException e) {
-            throw new FileUploadException("Failed to read uploaded file", e);
+        // One retry on a transient network/DNS blip reaching R2 - the same
+        // class of intermittent failure already seen and fixed for
+        // reCAPTCHA (RecaptchaVerificationService) this project. Unlike
+        // that fail-open case, an upload that still fails after the retry
+        // is a real failure that has to surface - there's no safe default
+        // to fall back to when the file genuinely never made it to R2.
+        RuntimeException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+            try (InputStream in = file.getInputStream()) {
+                s3Client.putObject(
+                        PutObjectRequest.builder()
+                                .bucket(bucket)
+                                .key(key)
+                                .contentType(file.getContentType())
+                                .build(),
+                        RequestBody.fromInputStream(in, file.getSize()));
+                lastFailure = null;
+                break;
+            } catch (IOException e) {
+                throw new FileUploadException("Failed to read uploaded file", e);
+            } catch (RuntimeException e) {
+                lastFailure = e;
+            }
+        }
+        if (lastFailure != null) {
+            throw new FileUploadException("Failed to upload file to storage after retrying", lastFailure);
         }
 
         // A private-bucket URL would just 403 if ever used directly — only
         // public uploads get a usable plain URL. Private files are read back
-        // exclusively via presignedUrl(...).
+        // exclusively via presignedUrl(...). publicBaseUrl is the CDN-fronted
+        // custom domain connected to the public R2 bucket (or its plain
+        // r2.dev URL in dev, where no custom domain is connected) - not a
+        // raw R2 endpoint URL, so this stays a simple concatenation.
         String url = visibility == Visibility.PUBLIC
-                ? "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key)
+                ? publicBaseUrl + "/" + key
                 : null;
         return new UploadResult(key, url);
     }

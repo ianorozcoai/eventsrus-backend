@@ -26,6 +26,7 @@ public class AuthService {
         VendorPlanService.EffectivePlan effectivePlan = vendorPlanService.getEffectivePlan(user.getId());
 
         return AuthResponse.builder()
+                .id(user.getId())
                 .token(token)
                 .expiresIn(jwtService.getExpirationMs() / 1000)
                 .role(user.getRole())

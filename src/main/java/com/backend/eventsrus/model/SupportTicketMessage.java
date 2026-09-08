@@ -40,6 +40,12 @@ public class SupportTicketMessage {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
 
+    // A screenshot the sender attached, if any - the S3 object key (private
+    // bucket), not a URL; see SupportTicketService#toMessageResponse for
+    // where that gets turned into a real, short-lived presigned URL.
+    @Column(name = "attachment_key")
+    private String attachmentKey;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

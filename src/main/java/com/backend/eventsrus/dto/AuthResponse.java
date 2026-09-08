@@ -12,6 +12,9 @@ import lombok.Getter;
 @AllArgsConstructor
 public class AuthResponse {
 
+    /** The authenticated user's own numeric id - callers use this to tell "sent by me" apart from "received" without a second round trip. */
+    private Long id;
+
     private String token;
 
     @Builder.Default

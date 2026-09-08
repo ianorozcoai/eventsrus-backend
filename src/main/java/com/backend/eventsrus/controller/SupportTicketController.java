@@ -9,13 +9,17 @@ import com.backend.eventsrus.service.SupportTicketService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Support tickets - symmetric for planners and vendors (any authenticated
@@ -29,11 +33,17 @@ public class SupportTicketController {
 
     private final SupportTicketService supportTicketService;
 
-    @PostMapping("/api/v1/support-tickets")
-    public SupportTicketResponse createTicket(@Valid @RequestBody CreateTicketRequest request, Authentication authentication) {
+    // multipart, not JSON, so a screenshot can ride along with the opening
+    // complaint - see SupportTicketService#postMessage for the actual
+    // upload/validation.
+    @PostMapping(value = "/api/v1/support-tickets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SupportTicketResponse createTicket(
+            @Valid @ModelAttribute CreateTicketRequest request,
+            @RequestPart(required = false) MultipartFile attachment,
+            Authentication authentication) {
         return supportTicketService.createTicket(
                 authentication.getName(), request.getSubject(), request.getCategory(), request.getMessage(),
-                request.getRelatedEventId(), request.getRelatedBookingId(), request.getRelatedQuotationId());
+                request.getRelatedEventId(), request.getRelatedBookingId(), request.getRelatedQuotationId(), attachment);
     }
 
     @GetMapping("/api/v1/support-tickets/me")
@@ -51,10 +61,14 @@ public class SupportTicketController {
         return supportTicketService.getMessages(authentication.getName(), ticketId);
     }
 
-    @PostMapping("/api/v1/support-tickets/{ticketId}/messages")
+    // multipart, not JSON - same reasoning as createTicket above.
+    @PostMapping(value = "/api/v1/support-tickets/{ticketId}/messages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SupportTicketResponse reply(
-            @PathVariable Long ticketId, @Valid @RequestBody ReplyToTicketRequest request, Authentication authentication) {
-        return supportTicketService.reply(authentication.getName(), ticketId, request.getMessage());
+            @PathVariable Long ticketId,
+            @Valid @ModelAttribute ReplyToTicketRequest request,
+            @RequestPart(required = false) MultipartFile attachment,
+            Authentication authentication) {
+        return supportTicketService.reply(authentication.getName(), ticketId, request.getMessage(), attachment);
     }
 
     @PutMapping("/api/v1/support-tickets/{ticketId}/status")

@@ -3,6 +3,7 @@ package com.backend.eventsrus.dto;
 import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.EventType;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,6 +13,11 @@ import lombok.Getter;
 @Builder
 @AllArgsConstructor
 public class VendorSettingsResponse {
+
+    // Needed client-side to link to the vendor's own public storefront
+    // (GET /api/v1/vendors/{slug}) - there's no other authenticated endpoint
+    // that exposes it.
+    private String slug;
 
     private String businessName;
     private String ownerName;
@@ -31,8 +37,15 @@ public class VendorSettingsResponse {
     // now their own resource, fetched via GET /api/v1/vendors/me/legal-documents
     // (VendorLegalDocumentController), same pattern paymentMethods already uses.
 
+    // Real, admin-set verification state (see AdminVendorController#verify) -
+    // lets the vendor see their own review status on their Settings page
+    // instead of only finding out via the storefront badge.
+    private boolean verified;
+    private Instant verifiedAt;
+
     private BusinessType primaryCategory;
     private Integer maxGuestCapacity;
+    private Integer maxCustomersPerDay;
     private BigDecimal basePrice;
     private Integer leadTimeDays;
     private String storefrontOverview;

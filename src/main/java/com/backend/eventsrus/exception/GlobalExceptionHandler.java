@@ -50,6 +50,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.PAYMENT_REQUIRED, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(RecaptchaVerificationException.class)
+    public ResponseEntity<ErrorResponse> handleRecaptchaVerification(
+            RecaptchaVerificationException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(InvalidFileTypeException.class)
     public ResponseEntity<ErrorResponse> handleInvalidFileType(
             InvalidFileTypeException ex, HttpServletRequest request) {

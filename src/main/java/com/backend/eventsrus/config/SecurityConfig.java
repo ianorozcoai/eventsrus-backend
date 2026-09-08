@@ -42,6 +42,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/webhooks/**").permitAll()
+                        // A vendor's storefront has to be publicly browsable (that's
+                        // the whole point) - VendorDirectoryController/Service already
+                        // handle an anonymous caller defensively (lead-tracking via
+                        // ?eventId= is just skipped when there's no Authentication).
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/vendors/*").permitAll()
+                        // Guarded by its own shared-secret header check, not a JWT -
+                        // see AdminInternalAuthController for why this one path needs
+                        // to be reachable before an ADMIN-role token exists at all.
+                        .requestMatchers("/api/v1/admin/internal-login").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
