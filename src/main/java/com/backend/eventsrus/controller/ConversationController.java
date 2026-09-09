@@ -29,7 +29,8 @@ public class ConversationController {
             @Valid @RequestBody InquiryRequest request,
             Authentication authentication) {
         return conversationService.sendInquiry(
-                authentication.getName(), eventId, vendorUserId, request.getTargetDate(), request.getMessage());
+                authentication.getName(), eventId, vendorUserId, request.getPlannerName(), request.getTargetDate(),
+                request.getMessage());
     }
 
     // A vendor reaching out first to a lead (see ConversationService#sendVendorMessage) -

@@ -5,6 +5,7 @@ import com.backend.eventsrus.dto.CreateEventRequest;
 import com.backend.eventsrus.dto.EventResponse;
 import com.backend.eventsrus.dto.EventSummaryResponse;
 import com.backend.eventsrus.dto.SuggestedVendorResponse;
+import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.ChecklistSource;
 import com.backend.eventsrus.enums.ChecklistStatus;
 import com.backend.eventsrus.model.Event;
@@ -16,6 +17,8 @@ import com.backend.eventsrus.repository.EventChecklistItemRepository;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.EventSuggestedVendorRepository;
 import com.backend.eventsrus.repository.UserRepository;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -47,29 +50,42 @@ public class EventService {
                 .saved(false)
                 .build());
 
+        // Which vendor CATEGORIES this event needs is a one-shot AI decision
+        // at creation time, recorded here as one placeholder row per type
+        // (vendorProfile always null - that field is unused now). WHICH real
+        // vendors currently match those categories is computed live on every
+        // read instead (see #buildSuggestions) - location/date can be added
+        // or changed later (#updateEventDetails), and matching always
+        // reflects whatever's on the event right now rather than a stale
+        // snapshot from creation time.
         AiSuggestionService.AiSuggestionResult suggestions =
                 aiSuggestionService.generateSuggestions(request.getEventType(), request.getDescription());
         event.setAiIdeaText(suggestions.ideaText());
         eventRepository.save(event);
 
         for (var vendorType : suggestions.suggestedVendorTypes()) {
-            List<VendorProfile> matches = vendorSearchService.findMatchingVendors(vendorType, request.getLocation());
-            if (matches.isEmpty()) {
-                eventSuggestedVendorRepository.save(EventSuggestedVendor.builder()
-                        .event(event)
-                        .vendorType(vendorType)
-                        .build());
-            } else {
-                for (VendorProfile match : matches) {
-                    eventSuggestedVendorRepository.save(EventSuggestedVendor.builder()
-                            .event(event)
-                            .vendorProfile(match)
-                            .vendorType(vendorType)
-                            .build());
-                }
-            }
+            eventSuggestedVendorRepository.save(EventSuggestedVendor.builder()
+                    .event(event)
+                    .vendorType(vendorType)
+                    .build());
         }
 
+        return toResponse(event);
+    }
+
+    /**
+     * Sets/changes an event's date and/or location after creation - there's
+     * no other way to supply these once past the initial intake form.
+     * Nothing else needs updating here: vendor matching is computed live
+     * from the event's current fields on every read, not stored, so it's
+     * automatically fresh the next time this event is fetched.
+     */
+    @Transactional
+    public EventResponse updateEventDetails(String plannerEmail, Long eventId, LocalDate eventDate, String location) {
+        Event event = requireOwnedEvent(plannerEmail, eventId);
+        event.setEventDate(eventDate);
+        event.setLocation(location);
+        eventRepository.save(event);
         return toResponse(event);
     }
 
@@ -155,16 +171,7 @@ public class EventService {
     }
 
     private EventResponse toResponse(Event event) {
-        List<SuggestedVendorResponse> suggestions = eventSuggestedVendorRepository.findByEventId(event.getId()).stream()
-                .map(s -> SuggestedVendorResponse.builder()
-                        .vendorType(s.getVendorType())
-                        .vendorProfileId(s.getVendorProfile() != null ? s.getVendorProfile().getId() : null)
-                        .businessName(s.getVendorProfile() != null ? s.getVendorProfile().getBusinessName() : null)
-                        .slug(s.getVendorProfile() != null ? s.getVendorProfile().getSlug() : null)
-                        .logoImageUrl(s.getVendorProfile() != null ? s.getVendorProfile().getLogoImageUrl() : null)
-                        .city(s.getVendorProfile() != null ? s.getVendorProfile().getCity() : null)
-                        .build())
-                .toList();
+        List<SuggestedVendorResponse> suggestions = buildSuggestions(event);
 
         List<ChecklistItemResponse> checklist = eventChecklistItemRepository.findByEventIdOrderByCreatedAtAsc(event.getId())
                 .stream()
@@ -183,6 +190,42 @@ public class EventService {
                 .suggestions(suggestions)
                 .checklist(checklist)
                 .build();
+    }
+
+    /**
+     * Live vendor matches for this event's currently-needed categories
+     * (recorded once at creation - see #createEvent), computed fresh every
+     * call against the event's CURRENT location/date rather than read from
+     * a stored snapshot. A category with no current match still gets one
+     * placeholder entry (vendorProfileId null) so the caller can render a
+     * "no matching vendor yet" state per category, same as before.
+     */
+    private List<SuggestedVendorResponse> buildSuggestions(Event event) {
+        List<BusinessType> neededTypes = eventSuggestedVendorRepository.findByEventId(event.getId()).stream()
+                .map(EventSuggestedVendor::getVendorType)
+                .distinct()
+                .toList();
+
+        List<SuggestedVendorResponse> suggestions = new ArrayList<>();
+        for (BusinessType type : neededTypes) {
+            List<VendorProfile> matches =
+                    vendorSearchService.findMatchingVendors(type, event.getLocation(), event.getEventDate());
+            if (matches.isEmpty()) {
+                suggestions.add(SuggestedVendorResponse.builder().vendorType(type).build());
+            } else {
+                for (VendorProfile match : matches) {
+                    suggestions.add(SuggestedVendorResponse.builder()
+                            .vendorType(type)
+                            .vendorProfileId(match.getId())
+                            .businessName(match.getBusinessName())
+                            .slug(match.getSlug())
+                            .logoImageUrl(match.getLogoImageUrl())
+                            .city(match.getCity())
+                            .build());
+                }
+            }
+        }
+        return suggestions;
     }
 
     private ChecklistItemResponse toChecklistResponse(EventChecklistItem item) {

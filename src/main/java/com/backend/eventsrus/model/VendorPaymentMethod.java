@@ -18,9 +18,10 @@ import lombok.experimental.SuperBuilder;
 /**
  * A vendor-uploaded way for planners to pay them directly (a QR code for
  * GCash, Maya, a bank transfer, etc.), shown on the storefront once
- * approved. New uploads always start PENDING - there's no admin review
- * screen yet, so nothing a vendor uploads here is publicly visible until
- * that ships and someone approves it.
+ * APPROVED. Admin approval is disabled for now (no review screen exists
+ * yet) - VendorPaymentMethodService#create auto-approves every new upload,
+ * so this is effectively always APPROVED today. PENDING/REJECTED are kept
+ * for when real admin review ships, not removed.
  */
 @Entity
 @Table(name = "vendor_payment_methods")

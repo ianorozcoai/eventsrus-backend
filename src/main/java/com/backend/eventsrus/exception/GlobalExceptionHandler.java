@@ -69,6 +69,19 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(AnthropicApiException.class)
+    public ResponseEntity<ErrorResponse> handleAnthropicApiException(
+            AnthropicApiException ex, HttpServletRequest request) {
+        log.error("Anthropic API error on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(CoordinatorQuotaExceededException.class)
+    public ResponseEntity<ErrorResponse> handleCoordinatorQuotaExceeded(
+            CoordinatorQuotaExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);

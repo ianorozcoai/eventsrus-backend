@@ -39,11 +39,17 @@ public class VendorPaymentMethodService {
                 .upload(qrImage, keyPrefix(profile.getUser().getId()), S3UploadService.Visibility.PUBLIC)
                 .url();
 
+        // Admin approval is disabled for now (no review screen exists yet -
+        // PaymentMethodStatus.PENDING/REJECTED are kept, just unused here
+        // until that ships) - auto-approve on upload instead so a vendor's
+        // payment methods show on their storefront immediately. See
+        // V32__auto_approve_existing_payment_methods.sql for the one-time
+        // backfill of anything that was already stuck PENDING.
         VendorPaymentMethod saved = vendorPaymentMethodRepository.save(VendorPaymentMethod.builder()
                 .vendorProfile(profile)
                 .label(label)
                 .qrImageUrl(qrImageUrl)
-                .status(PaymentMethodStatus.PENDING)
+                .status(PaymentMethodStatus.APPROVED)
                 .build());
         return toResponse(saved);
     }

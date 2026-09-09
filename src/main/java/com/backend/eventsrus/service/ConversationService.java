@@ -3,16 +3,20 @@ package com.backend.eventsrus.service;
 import com.backend.eventsrus.dto.ConversationMessageResponse;
 import com.backend.eventsrus.dto.ConversationSummaryResponse;
 import com.backend.eventsrus.enums.NotificationType;
+import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.model.Conversation;
 import com.backend.eventsrus.model.ConversationMessage;
 import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.ConversationMessageRepository;
 import com.backend.eventsrus.repository.ConversationRepository;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
+import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,13 +30,23 @@ public class ConversationService {
     private final ConversationMessageRepository conversationMessageRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final VendorProfileRepository vendorProfileRepository;
     private final NotificationService notificationService;
     private final VendorPlanService vendorPlanService;
 
-    /** Planner's initial inquiry — finds or creates the (event, vendor) conversation and posts the opening message. */
+    /**
+     * Planner's initial inquiry — finds or creates the (event, vendor)
+     * conversation and posts the opening message. plannerName is the
+     * storefront form's free-text "Your Full Name" field (distinct from the
+     * account's own name - the planner filling this in may be booking on
+     * someone else's behalf) - composed into the message body along with
+     * the target date so the vendor sees a complete, self-contained
+     * inquiry rather than just the raw question with that context lost.
+     */
     @Transactional
     public ConversationMessageResponse sendInquiry(
-            String plannerEmail, Long eventId, Long vendorUserId, LocalDate targetDate, String message) {
+            String plannerEmail, Long eventId, Long vendorUserId, String plannerName, LocalDate targetDate,
+            String message) {
         User planner = requireUser(plannerEmail);
         User vendor = userRepository.findById(vendorUserId)
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + vendorUserId));
@@ -46,7 +60,17 @@ public class ConversationService {
                         .plannerUser(planner)
                         .build()));
 
-        return postMessage(conversation, planner, vendor, targetDate, message);
+        return postMessage(conversation, planner, vendor, targetDate, composeInquiryBody(plannerName, targetDate, message));
+    }
+
+    private String composeInquiryBody(String plannerName, LocalDate targetDate, String message) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Name: ").append(plannerName).append("\n");
+        if (targetDate != null) {
+            sb.append("Event Date: ").append(targetDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))).append("\n");
+        }
+        sb.append("\nInquiry Message:\n\n").append(message);
+        return sb.toString();
     }
 
     /**
@@ -185,7 +209,22 @@ public class ConversationService {
                 .build();
     }
 
+    /**
+     * A vendor should always be identified by their business name, not the
+     * personal name of whoever's logged into that account - a planner
+     * talking to "Blossom & Bloom Florals" shouldn't see "Ian Orozco" in
+     * the chat header/notifications instead. Planners have no business
+     * name concept, so they still fall back to personal name/email.
+     */
     private String displayName(User user) {
+        if (user.getRole() == Role.VENDOR) {
+            String businessName = vendorProfileRepository.findByUserId(user.getId())
+                    .map(VendorProfile::getBusinessName)
+                    .orElse(null);
+            if (businessName != null) {
+                return businessName;
+            }
+        }
         if (user.getFirstName() != null) {
             return user.getLastName() != null ? user.getFirstName() + " " + user.getLastName() : user.getFirstName();
         }

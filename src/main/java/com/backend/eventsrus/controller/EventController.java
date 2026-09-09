@@ -7,6 +7,7 @@ import com.backend.eventsrus.dto.EventResponse;
 import com.backend.eventsrus.dto.EventSummaryResponse;
 import com.backend.eventsrus.dto.SaveEventRequest;
 import com.backend.eventsrus.dto.UpdateChecklistStatusRequest;
+import com.backend.eventsrus.dto.UpdateEventDetailsRequest;
 import com.backend.eventsrus.service.EventService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -46,6 +47,19 @@ public class EventController {
     public EventResponse saveEvent(
             @PathVariable Long eventId, @Valid @RequestBody SaveEventRequest request, Authentication authentication) {
         return eventService.saveEvent(authentication.getName(), eventId, request.getName());
+    }
+
+    /**
+     * Sets/changes date and/or location after creation - the only way to
+     * supply these once past the initial intake form (both are optional
+     * there). Returns the event with vendor suggestions freshly matched
+     * against whatever's now on it - see EventService#buildSuggestions.
+     */
+    @PutMapping("/{eventId}/details")
+    public EventResponse updateEventDetails(
+            @PathVariable Long eventId, @RequestBody UpdateEventDetailsRequest request, Authentication authentication) {
+        return eventService.updateEventDetails(
+                authentication.getName(), eventId, request.getEventDate(), request.getLocation());
     }
 
     @PostMapping("/{eventId}/checklist")
