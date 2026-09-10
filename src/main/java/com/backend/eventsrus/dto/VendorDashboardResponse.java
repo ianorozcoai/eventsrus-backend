@@ -11,9 +11,10 @@ import lombok.Getter;
 public class VendorDashboardResponse {
 
     private long newLeadsCount;
-    private long newMessagesCount;
+    private long newInquiriesCount;
     private long newQuotationsCount;
     private long newBookingsCount;
+    private long bookingsNeedingActionCount;
     private long upcomingEventsCount;
     private BigDecimal totalIncome;
     private long cancellationsCount;

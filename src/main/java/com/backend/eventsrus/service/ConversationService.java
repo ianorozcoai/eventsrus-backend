@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -197,12 +198,22 @@ public class ConversationService {
         boolean viewerIsVendor = conversation.getVendorUser().getId().equals(viewer.getId());
         User otherParty = viewerIsVendor ? conversation.getPlannerUser() : conversation.getVendorUser();
 
+        // Only populated when the viewer is a planner looking at a vendor -
+        // lets the Chats header show the vendor's category and a "View
+        // Storefront" link, same info a planner would find useful there.
+        Optional<VendorProfile> otherPartyProfile = viewerIsVendor
+                ? Optional.empty()
+                : vendorProfileRepository.findByUserId(otherParty.getId());
+
         return ConversationSummaryResponse.builder()
                 .id(conversation.getId())
                 .eventId(conversation.getEvent().getId())
                 .eventName(conversation.getEvent().getName())
+                .eventDate(conversation.getEvent().getEventDate())
                 .otherPartyUserId(otherParty.getId())
                 .otherPartyName(displayName(otherParty))
+                .otherPartyBusinessType(otherPartyProfile.map(VendorProfile::getBusinessType).orElse(null))
+                .otherPartySlug(otherPartyProfile.map(VendorProfile::getSlug).orElse(null))
                 .lastMessagePreview(last != null ? last.getBody() : null)
                 .lastMessageAt(last != null ? last.getCreatedAt() : null)
                 .unreadCount(unread)

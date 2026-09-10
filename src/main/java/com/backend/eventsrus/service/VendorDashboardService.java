@@ -41,10 +41,15 @@ public class VendorDashboardService {
                 .filter(l -> l.getFirstVisitedAt().isAfter(sevenDaysAgo))
                 .count();
 
-        long unreadMessages = 0;
+        // Distinct CONVERSATIONS awaiting a reply, not a raw sum of unread
+        // messages - a planner who sends 5 messages in one thread is one
+        // inquiry needing a reply, not five.
+        long newInquiries = 0;
         for (Conversation conversation : conversationRepository.findByVendorUserIdOrderByUpdatedAtDesc(vendor.getId())) {
-            unreadMessages += conversationMessageRepository
-                    .countByConversationIdAndReadAtIsNullAndSenderIdNot(conversation.getId(), vendor.getId());
+            if (conversationMessageRepository
+                    .countByConversationIdAndReadAtIsNullAndSenderIdNot(conversation.getId(), vendor.getId()) > 0) {
+                newInquiries++;
+            }
         }
 
         long newQuotations = quotationRepository.findByVendorUserIdOrderByCreatedAtDesc(vendor.getId()).stream()
@@ -52,6 +57,12 @@ public class VendorDashboardService {
                 .count();
 
         var bookings = bookingRepository.findByVendorUserIdOrderByEventDatetimeAsc(vendor.getId());
+        // Distinct from newBookingsCount below (that one's "recently
+        // approved", a backward-looking stat) - this is "waiting on you to
+        // do something", which is what the sidebar's Bookings badge shows.
+        long bookingsNeedingAction = bookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.PROPOSED || b.getStatus() == BookingStatus.PAYMENT_SUBMITTED)
+                .count();
         long newBookings = bookings.stream()
                 .filter(b -> b.getStatus() == BookingStatus.APPROVED
                         && b.getRespondedAt() != null && b.getRespondedAt().isAfter(sevenDaysAgo))
@@ -68,9 +79,10 @@ public class VendorDashboardService {
 
         return VendorDashboardResponse.builder()
                 .newLeadsCount(newLeads)
-                .newMessagesCount(unreadMessages)
+                .newInquiriesCount(newInquiries)
                 .newQuotationsCount(newQuotations)
                 .newBookingsCount(newBookings)
+                .bookingsNeedingActionCount(bookingsNeedingAction)
                 .upcomingEventsCount(upcomingEvents)
                 .totalIncome(totalIncome)
                 .cancellationsCount(cancellations)
