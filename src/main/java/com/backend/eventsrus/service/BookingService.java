@@ -50,6 +50,7 @@ public class BookingService {
     private final S3UploadService s3UploadService;
     private final BookingStatusEventRepository bookingStatusEventRepository;
     private final VendorPlanService vendorPlanService;
+    private final ReviewService reviewService;
 
     @Transactional
     public BookingResponse propose(
@@ -346,6 +347,7 @@ public class BookingService {
 
     private BookingResponse toResponse(Booking booking) {
         VendorProfile vendorProfile = vendorProfileRepository.findByUserId(booking.getVendorUser().getId()).orElse(null);
+        var existingReview = reviewService.existingReview(booking.getId());
         return BookingResponse.builder()
                 .id(booking.getId())
                 .eventId(booking.getEvent().getId())
@@ -370,6 +372,10 @@ public class BookingService {
                 .cancelledAt(booking.getCancelledAt())
                 .cancellationReason(booking.getCancellationReason())
                 .cancelledByUserId(booking.getCancelledBy() != null ? booking.getCancelledBy().getId() : null)
+                .reviewId(existingReview != null ? existingReview.getId() : null)
+                .reviewRating(existingReview != null ? existingReview.getRating() : null)
+                .reviewComment(existingReview != null ? existingReview.getComment() : null)
+                .canReview(existingReview == null && reviewService.isReviewable(booking))
                 .build();
     }
 }

@@ -82,6 +82,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(ReviewNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleReviewNotAllowed(
+            ReviewNotAllowedException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);

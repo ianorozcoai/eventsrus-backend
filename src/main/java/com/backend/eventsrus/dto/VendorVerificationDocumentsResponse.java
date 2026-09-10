@@ -25,4 +25,11 @@ public class VendorVerificationDocumentsResponse {
     private boolean verified;
     private Instant verifiedAt;
     private String verifiedByAdmin;
+
+    // Admin-set "Top Vendor" spotlight, independent of verification.
+    private boolean topVendor;
+
+    // Every review this vendor has (including hidden ones - the admin view
+    // needs to see and un-hide those). Newest first.
+    private List<ReviewResponse> reviews;
 }

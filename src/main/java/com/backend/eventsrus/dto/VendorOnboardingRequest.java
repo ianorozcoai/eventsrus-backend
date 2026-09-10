@@ -1,9 +1,11 @@
 package com.backend.eventsrus.dto;
 
 import com.backend.eventsrus.enums.BusinessType;
+import com.backend.eventsrus.enums.EventType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,6 +43,13 @@ public class VendorOnboardingRequest {
     private String country;
 
     private List<String> operatingAreas;
+
+    // Which event types this vendor caters to - mandatory at onboarding so
+    // planners can be matched to the right vendors for the occasion (mirrors
+    // VendorProfile.cateredEventTypes, also editable later in Account
+    // Settings via VendorSettingsRequest).
+    @NotEmpty(message = "Select at least one event type you cater to")
+    private List<EventType> cateredEventTypes;
 
     @AssertTrue(message = "You must accept the vendor terms of service")
     private boolean acceptedTerms;

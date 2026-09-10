@@ -23,11 +23,14 @@ public class VendorDirectoryService {
     private final VendorPaymentMethodService vendorPaymentMethodService;
     private final VendorLegalDocumentService vendorLegalDocumentService;
     private final VendorPackageImageService vendorPackageImageService;
+    private final ReviewService reviewService;
 
     @Transactional(readOnly = true)
     public VendorPublicProfileResponse getPublicProfile(String slug) {
         VendorProfile profile = vendorProfileRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + slug));
+        Long vendorUserId = profile.getUser().getId();
+        ReviewService.RatingSummary ratings = reviewService.ratingSummary(vendorUserId);
 
         var activePackages = vendorPackageRepository.findByVendorProfileIdOrderByCreatedAtDesc(profile.getId()).stream()
                 .filter(pkg -> pkg.isActive())
@@ -97,6 +100,9 @@ public class VendorDirectoryService {
                 // the storefront's "Verified Vendor" badge appears.
                 .identityVerified(profile.isVerified())
                 .galleryImages(galleryImages)
+                .reviews(reviewService.listPublic(vendorUserId))
+                .averageRating(ratings.averageRating())
+                .reviewCount(ratings.reviewCount())
                 .build();
     }
 }

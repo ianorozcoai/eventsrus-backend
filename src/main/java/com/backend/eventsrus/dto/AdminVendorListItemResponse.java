@@ -34,5 +34,6 @@ public class AdminVendorListItemResponse {
     private boolean verified;
     private Instant verifiedAt;
     private String verifiedByAdmin;
+    private boolean topVendor;
     private Instant createdAt;
 }

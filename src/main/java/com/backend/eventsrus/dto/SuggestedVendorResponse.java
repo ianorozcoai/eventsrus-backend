@@ -18,4 +18,11 @@ public class SuggestedVendorResponse {
     private String slug;
     private String logoImageUrl;
     private String city;
+    /** Admin-reviewed "Verified Vendor" - shown as a badge, and these sort first in their category. */
+    private boolean verified;
+    /** Admin-set "Top Vendor" spotlight - shown as a badge, sorts ahead of everything else in its category. */
+    private boolean topVendor;
+    /** Aggregate planner rating - null when this vendor has no reviews yet. */
+    private Double averageRating;
+    private int reviewCount;
 }

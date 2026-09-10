@@ -19,6 +19,7 @@ import com.backend.eventsrus.repository.EventSuggestedVendorRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,6 +37,7 @@ public class EventService {
     private final UserRepository userRepository;
     private final AiSuggestionService aiSuggestionService;
     private final VendorSearchService vendorSearchService;
+    private final ReviewService reviewService;
 
     @Transactional
     public EventResponse createEvent(String plannerEmail, CreateEventRequest request) {
@@ -193,36 +195,45 @@ public class EventService {
     }
 
     /**
-     * Live vendor matches for this event's currently-needed categories
-     * (recorded once at creation - see #createEvent), computed fresh every
-     * call against the event's CURRENT location/date rather than read from
-     * a stored snapshot. A category with no current match still gets one
-     * placeholder entry (vendorProfileId null) so the caller can render a
-     * "no matching vendor yet" state per category, same as before.
+     * Live vendor matches for EVERY business type, computed fresh each call
+     * against the event's current location/date rather than read from a
+     * stored snapshot. Every type gets a header in the planner's Suppliers
+     * list; types with no current match get a single placeholder entry
+     * (vendorProfileId null) so the caller can render "No Matching Vendors"
+     * under them.
      */
     private List<SuggestedVendorResponse> buildSuggestions(Event event) {
-        List<BusinessType> neededTypes = eventSuggestedVendorRepository.findByEventId(event.getId()).stream()
-                .map(EventSuggestedVendor::getVendorType)
-                .distinct()
-                .toList();
-
         List<SuggestedVendorResponse> suggestions = new ArrayList<>();
-        for (BusinessType type : neededTypes) {
-            List<VendorProfile> matches =
-                    vendorSearchService.findMatchingVendors(type, event.getLocation(), event.getEventDate());
+        for (BusinessType type : BusinessType.values()) {
+            List<VendorProfile> matches = vendorSearchService.findMatchingVendors(
+                    type, event.getLocation(), event.getEventDate(), event.getEventType());
             if (matches.isEmpty()) {
                 suggestions.add(SuggestedVendorResponse.builder().vendorType(type).build());
             } else {
+                List<SuggestedVendorResponse> forType = new ArrayList<>();
                 for (VendorProfile match : matches) {
-                    suggestions.add(SuggestedVendorResponse.builder()
+                    ReviewService.RatingSummary ratings = reviewService.ratingSummary(match.getUser().getId());
+                    forType.add(SuggestedVendorResponse.builder()
                             .vendorType(type)
                             .vendorProfileId(match.getId())
                             .businessName(match.getBusinessName())
                             .slug(match.getSlug())
                             .logoImageUrl(match.getLogoImageUrl())
                             .city(match.getCity())
+                            .verified(match.isVerified())
+                            .topVendor(match.isTopVendor())
+                            .averageRating(ratings.averageRating())
+                            .reviewCount(ratings.reviewCount())
                             .build());
                 }
+                // Top Vendors first, then verified, then highest-rated - the
+                // spotlight/trusted/best-reviewed rise to the top of their category.
+                forType.sort(Comparator
+                        .comparing(SuggestedVendorResponse::isTopVendor)
+                        .thenComparing(SuggestedVendorResponse::isVerified)
+                        .thenComparing(r -> r.getAverageRating() == null ? -1.0 : r.getAverageRating())
+                        .reversed());
+                suggestions.addAll(forType);
             }
         }
         return suggestions;

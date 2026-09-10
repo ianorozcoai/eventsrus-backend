@@ -2,6 +2,7 @@ package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
+import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminVendorController {
 
     private final UserService userService;
+    private final ReviewService reviewService;
 
     /** The review queue - every vendor, regardless of verification state. */
     @GetMapping
@@ -47,6 +49,7 @@ public class AdminVendorController {
                         .verified(v.verified())
                         .verifiedAt(v.verifiedAt())
                         .verifiedByAdmin(v.verifiedByAdmin())
+                        .topVendor(v.topVendor())
                         .createdAt(v.createdAt())
                         .build())
                 .toList();
@@ -65,6 +68,8 @@ public class AdminVendorController {
                 .verified(documents.verified())
                 .verifiedAt(documents.verifiedAt())
                 .verifiedByAdmin(documents.verifiedByAdmin())
+                .topVendor(documents.topVendor())
+                .reviews(reviewService.listAll(userId))
                 .build();
     }
 
@@ -82,5 +87,15 @@ public class AdminVendorController {
     @PostMapping("/{userId}/unverify")
     public void unverify(@PathVariable Long userId) {
         userService.unverifyVendor(userId);
+    }
+
+    @PostMapping("/{userId}/mark-top")
+    public void markTop(@PathVariable Long userId) {
+        userService.setTopVendor(userId, true);
+    }
+
+    @PostMapping("/{userId}/unmark-top")
+    public void unmarkTop(@PathVariable Long userId) {
+        userService.setTopVendor(userId, false);
     }
 }

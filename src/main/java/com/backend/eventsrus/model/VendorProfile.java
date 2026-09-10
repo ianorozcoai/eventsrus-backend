@@ -97,6 +97,13 @@ public class VendorProfile extends BaseEntity {
     @Column(name = "verified_by_admin")
     private String verifiedByAdmin;
 
+    // Admin-set spotlight flag, independent of `verified` - a vendor can be
+    // a Top Vendor without being verified, or vice versa. See
+    // AdminVendorController#markTop.
+    @Column(name = "top_vendor", nullable = false)
+    @Builder.Default
+    private boolean topVendor = false;
+
     // Business-registration paperwork (DTI/SEC/Mayor's Permit/Barangay
     // Clearance/BIR/...) now lives in VendorLegalDocument, a child
     // collection - a business can reasonably have several of these at once,

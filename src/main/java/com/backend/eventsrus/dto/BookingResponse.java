@@ -35,4 +35,13 @@ public class BookingResponse {
     private Instant cancelledAt;
     private String cancellationReason;
     private Long cancelledByUserId;
+
+    // Review eligibility for the planner viewing their own bookings - see
+    // ReviewService. canReview is true only for a successful booking whose
+    // event is 3+ days past and hasn't been reviewed yet; reviewId is set
+    // once they have.
+    private boolean canReview;
+    private Long reviewId;
+    private Integer reviewRating;
+    private String reviewComment;
 }

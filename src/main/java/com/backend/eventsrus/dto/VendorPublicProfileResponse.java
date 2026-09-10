@@ -43,4 +43,10 @@ public class VendorPublicProfileResponse {
     // photos are also available nested under packages[].images if a caller
     // wants them grouped instead of flat.
     private List<VendorPackageImageResponse> galleryImages;
+
+    // Real planner reviews (hidden ones excluded), newest first, plus the
+    // aggregate. averageRating is null when there are no reviews yet.
+    private List<ReviewResponse> reviews;
+    private Double averageRating;
+    private int reviewCount;
 }

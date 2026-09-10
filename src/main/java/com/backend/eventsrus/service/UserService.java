@@ -135,6 +135,9 @@ public class UserService {
         if (request.getOperatingAreas() != null) {
             profile.setOperatingAreas(request.getOperatingAreas());
         }
+        if (request.getCateredEventTypes() != null) {
+            profile.setCateredEventTypes(request.getCateredEventTypes());
+        }
         if (profile.getSlug() == null) {
             profile.setSlug(generateUniqueSlug(request.getBusinessName()));
         }
@@ -206,7 +209,8 @@ public class UserService {
                 vendorLegalDocumentService.listForVendor(profile.getUser().getEmail()),
                 profile.isVerified(),
                 profile.getVerifiedAt(),
-                profile.getVerifiedByAdmin());
+                profile.getVerifiedByAdmin(),
+                profile.isTopVendor());
     }
 
     /** The admin verification review queue - every vendor, regardless of review state. */
@@ -237,6 +241,7 @@ public class UserService {
                         profile.isVerified(),
                         profile.getVerifiedAt(),
                         profile.getVerifiedByAdmin(),
+                        profile.isTopVendor(),
                         profile.getCreatedAt()))
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
@@ -304,6 +309,15 @@ public class UserService {
         profile.setVerified(false);
         profile.setVerifiedAt(null);
         profile.setVerifiedByAdmin(null);
+        vendorProfileRepository.save(profile);
+    }
+
+    /** Admin-set "Top Vendor" spotlight flag - independent of verification. */
+    @Transactional
+    public void setTopVendor(Long userId, boolean topVendor) {
+        VendorProfile profile = vendorProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Vendor profile not found for user: " + userId));
+        profile.setTopVendor(topVendor);
         vendorProfileRepository.save(profile);
     }
 
@@ -548,7 +562,8 @@ public class UserService {
             List<VendorLegalDocumentResponse> legalDocuments,
             boolean verified,
             Instant verifiedAt,
-            String verifiedByAdmin) {
+            String verifiedByAdmin,
+            boolean topVendor) {
     }
 
     public record AdminVendorListItem(
@@ -568,6 +583,7 @@ public class UserService {
             boolean verified,
             Instant verifiedAt,
             String verifiedByAdmin,
+            boolean topVendor,
             Instant createdAt) {
     }
 
