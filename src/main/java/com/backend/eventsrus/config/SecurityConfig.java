@@ -47,10 +47,10 @@ public class SecurityConfig {
                         // handle an anonymous caller defensively (lead-tracking via
                         // ?eventId= is just skipped when there's no Authentication).
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/vendors/*").permitAll()
-                        // Guarded by its own shared-secret header check, not a JWT -
-                        // see AdminInternalAuthController for why this one path needs
-                        // to be reachable before an ADMIN-role token exists at all.
-                        .requestMatchers("/api/v1/admin/internal-login").permitAll()
+                        // A caller without a token yet is exactly who needs to reach
+                        // the admin login itself - see AdminAccountController, which
+                        // does the real username/password check against admin_accounts.
+                        .requestMatchers("/api/v1/admin/auth/login").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
  * assistant (see CoordinatorService). apiKey defaults to empty (see
  * application.properties) - AnthropicClient fails closed with a clear
  * "not configured yet" error rather than crashing on startup or sending a
- * doomed request, same pattern as app.internal-admin-key.
+ * doomed request.
  */
 @Configuration
 @ConfigurationProperties(prefix = "anthropic")

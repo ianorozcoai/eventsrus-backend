@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(DuplicateAdminUsernameException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateAdminUsername(
+            DuplicateAdminUsernameException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(InvalidGoogleTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidGoogleToken(
             InvalidGoogleTokenException ex, HttpServletRequest request) {

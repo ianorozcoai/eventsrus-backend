@@ -1,0 +1,14 @@
+target/
+.git/
+.gitignore
+.idea/
+*.iml
+.vscode/
+HELP.md
+*.md
+
+# Real secrets never belong in a build context - these are already
+# gitignored, but Railway builds from git anyway, so this line only matters
+# if the image is ever built locally from this working directory.
+src/main/resources/application-local.properties
+src/main/resources/application-supabase.properties

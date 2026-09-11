@@ -75,9 +75,9 @@ public class AdminVendorController {
 
     /**
      * adminUsername identifies whoever clicked the button in eventsrus-web's
-     * own admin session (see that project's AdminSession) - not a real
-     * backend User, just an audit-trail label (there's no per-admin backend
-     * identity yet, see AdminInternalAuthController).
+     * own admin session (see that project's AdminSession) - a real
+     * admin_accounts username (see AdminAccountService), just used here as a
+     * plain audit-trail label rather than a foreign key.
      */
     @PostMapping("/{userId}/verify")
     public void verify(@PathVariable Long userId, @RequestParam(required = false) String adminUsername) {
