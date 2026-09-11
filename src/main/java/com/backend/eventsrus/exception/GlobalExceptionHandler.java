@@ -32,6 +32,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(AccountIdentityConflictException.class)
+    public ResponseEntity<ErrorResponse> handleAccountIdentityConflict(
+            AccountIdentityConflictException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(DuplicateAdminUsernameException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateAdminUsername(
             DuplicateAdminUsernameException ex, HttpServletRequest request) {

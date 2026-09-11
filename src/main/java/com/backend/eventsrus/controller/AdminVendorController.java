@@ -1,5 +1,6 @@
 package com.backend.eventsrus.controller;
 
+import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
 import com.backend.eventsrus.service.ReviewService;
@@ -51,6 +52,21 @@ public class AdminVendorController {
                         .verifiedByAdmin(v.verifiedByAdmin())
                         .topVendor(v.topVendor())
                         .createdAt(v.createdAt())
+                        .build())
+                .toList();
+    }
+
+    /** The other half of the Vendors directory - signed up, never finished onboarding. */
+    @GetMapping("/incomplete-signups")
+    public List<AdminIncompleteVendorSignupResponse> listIncompleteSignups() {
+        return userService.listIncompleteVendorSignupsForAdmin().stream()
+                .map(v -> AdminIncompleteVendorSignupResponse.builder()
+                        .id(v.id())
+                        .firstName(v.firstName())
+                        .lastName(v.lastName())
+                        .email(v.email())
+                        .mobileNumber(v.mobileNumber())
+                        .signedUpAt(v.signedUpAt())
                         .build())
                 .toList();
     }

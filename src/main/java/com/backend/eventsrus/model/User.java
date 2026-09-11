@@ -2,6 +2,7 @@ package com.backend.eventsrus.model;
 
 import com.backend.eventsrus.common.BaseEntity;
 import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.enums.SignupIntent;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -39,6 +40,16 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
+
+    // Which door this account first walked through (planner login vs.
+    // vendor sign-up) - set once at creation, never changed afterward. This
+    // is the actual identity lock: role still flows PLANNER -> VENDOR at
+    // becomeVendor time, but signupIntent is what UserService checks a
+    // returning login's declared intent against. See
+    // UserService#findOrCreateFromGoogle.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "signup_intent", nullable = false)
+    private SignupIntent signupIntent;
 
     // Vendor Terms & Agreement acceptance - set once, at becomeVendor time.
     // Null for planners and for any vendor who onboarded before this existed.

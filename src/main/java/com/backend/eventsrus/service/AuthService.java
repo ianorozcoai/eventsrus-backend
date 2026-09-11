@@ -17,7 +17,7 @@ public class AuthService {
 
     public AuthResponse authenticateWithGoogle(GoogleAuthRequest request) {
         GoogleUserInfo googleUser = googleTokenVerifierService.verify(request.getIdToken());
-        User user = userService.findOrCreateFromGoogle(googleUser);
+        User user = userService.findOrCreateFromGoogle(googleUser, request.getIntent());
         return issueTokenFor(user);
     }
 

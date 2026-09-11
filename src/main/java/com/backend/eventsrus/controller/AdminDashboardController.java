@@ -2,6 +2,7 @@ package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminDashboardResponse;
 import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.enums.SignupIntent;
 import com.backend.eventsrus.enums.TicketStatus;
 import com.backend.eventsrus.repository.SupportTicketRepository;
 import com.backend.eventsrus.repository.UserRepository;
@@ -26,11 +27,12 @@ public class AdminDashboardController {
     @GetMapping
     public AdminDashboardResponse get() {
         return AdminDashboardResponse.builder()
-                .plannerCount(userRepository.countByRole(Role.PLANNER))
+                .plannerCount(userRepository.countByRoleAndSignupIntentNot(Role.PLANNER, SignupIntent.VENDOR))
                 .vendorCount(userRepository.countByRole(Role.VENDOR))
                 .vendorTicketCount(supportTicketRepository.countByRaisedBy_Role(Role.VENDOR))
                 .newVendorTicketCount(supportTicketRepository.countByRaisedBy_RoleAndStatus(Role.VENDOR, TicketStatus.OPEN))
                 .newPlannerTicketCount(supportTicketRepository.countByRaisedBy_RoleAndStatus(Role.PLANNER, TicketStatus.OPEN))
+                .incompleteVendorSignupCount(userRepository.countBySignupIntentAndRoleNot(SignupIntent.VENDOR, Role.VENDOR))
                 .build();
     }
 }

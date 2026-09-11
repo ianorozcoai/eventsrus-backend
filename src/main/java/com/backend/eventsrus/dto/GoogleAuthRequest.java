@@ -14,4 +14,10 @@ public class GoogleAuthRequest {
 
     @NotBlank
     private String idToken;
+
+    // "planner" or "vendor" - which login door was used. Optional: the
+    // Flutter app doesn't send this yet, and a missing/blank value skips
+    // the identity-lock check entirely rather than defaulting to either
+    // side. See UserService#findOrCreateFromGoogle.
+    private String intent;
 }

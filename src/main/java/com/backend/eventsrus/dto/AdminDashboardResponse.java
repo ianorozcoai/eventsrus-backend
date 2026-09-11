@@ -15,4 +15,5 @@ public class AdminDashboardResponse {
     private long vendorTicketCount;
     private long newVendorTicketCount;
     private long newPlannerTicketCount;
+    private long incompleteVendorSignupCount;
 }

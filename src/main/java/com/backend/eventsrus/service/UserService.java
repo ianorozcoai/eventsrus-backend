@@ -12,7 +12,9 @@ import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.LegalDocumentType;
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.enums.SignupIntent;
 import com.backend.eventsrus.enums.SubscriptionStatus;
+import com.backend.eventsrus.exception.AccountIdentityConflictException;
 import com.backend.eventsrus.exception.DuplicateUserException;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.exception.RecaptchaVerificationException;
@@ -62,18 +64,52 @@ public class UserService {
     private final VendorReferralService vendorReferralService;
     private final EventRepository eventRepository;
 
-    public User findOrCreateFromGoogle(GoogleUserInfo googleUser) {
+    /**
+     * intent is "planner" or "vendor" - which login door was used (see
+     * GoogleAuthRequest#getIntent) - blank/unrecognized for any client that
+     * doesn't declare one yet (the Flutter app). A brand-new email is
+     * created with signupIntent locked to whichever door it came through
+     * (defaulting to PLANNER if undeclared, matching prior behavior). A
+     * returning email with a declared intent that conflicts with its
+     * locked signupIntent is rejected outright - each email is exactly one
+     * identity, permanently; the fix is a different email, not retrying.
+     * An undeclared intent on a returning user skips the check entirely.
+     */
+    public User findOrCreateFromGoogle(GoogleUserInfo googleUser, String intent) {
+        SignupIntent declaredIntent = parseIntent(intent);
         return userRepository.findByGoogleId(googleUser.googleId())
-                .orElseGet(() -> createPlannerFromGoogle(googleUser));
+                .map(existing -> requireNoIdentityConflict(existing, declaredIntent))
+                .orElseGet(() -> createFromGoogle(googleUser, declaredIntent));
     }
 
-    private User createPlannerFromGoogle(GoogleUserInfo googleUser) {
+    private SignupIntent parseIntent(String intent) {
+        if ("vendor".equalsIgnoreCase(intent)) {
+            return SignupIntent.VENDOR;
+        }
+        if ("planner".equalsIgnoreCase(intent)) {
+            return SignupIntent.PLANNER;
+        }
+        return null;
+    }
+
+    private User requireNoIdentityConflict(User existing, SignupIntent declaredIntent) {
+        if (declaredIntent != null && declaredIntent != existing.getSignupIntent()) {
+            String message = declaredIntent == SignupIntent.VENDOR
+                    ? "This email is already registered as a planner account. Please use a different email to sign up as a vendor."
+                    : "This email is already registered as a vendor account. Please use a different email to plan events.";
+            throw new AccountIdentityConflictException(message);
+        }
+        return existing;
+    }
+
+    private User createFromGoogle(GoogleUserInfo googleUser, SignupIntent declaredIntent) {
         User user = User.builder()
                 .googleId(googleUser.googleId())
                 .email(googleUser.email())
                 .firstName(googleUser.givenName())
                 .lastName(googleUser.familyName())
                 .role(Role.PLANNER)
+                .signupIntent(declaredIntent != null ? declaredIntent : SignupIntent.PLANNER)
                 .build();
 
         try {
@@ -247,20 +283,50 @@ public class UserService {
                 .toList();
     }
 
-    /** The admin Planner directory - every planner, newest first. */
+    /**
+     * Declared vendor intent (signed up through "Become a Vendor") but
+     * never finished the onboarding form - no VendorProfile exists yet, so
+     * these accounts don't show up in listVendorsForAdmin at all. Newest
+     * attempt first, same as the other admin directories.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminIncompleteVendorSignup> listIncompleteVendorSignupsForAdmin() {
+        return userRepository.findBySignupIntentAndRoleNotOrderByCreatedAtDesc(SignupIntent.VENDOR, Role.VENDOR).stream()
+                .map(user -> new AdminIncompleteVendorSignup(
+                        user.getId(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getEmail(),
+                        user.getMobileNumber(),
+                        user.getCreatedAt()))
+                .toList();
+    }
+
+    /**
+     * The admin Planner directory - every real planner, newest first.
+     * Excludes signupIntent=VENDOR: someone mid-vendor-onboarding is still
+     * role=PLANNER until they finish the form, but they're not a planner in
+     * any product sense - they already show up in the Vendors page's
+     * "Incomplete Sign-ups" tab, and shouldn't be double-counted here too.
+     */
     @Transactional(readOnly = true)
     public List<AdminPlannerListItem> listPlannersForAdmin() {
-        return userRepository.findByRole(Role.PLANNER).stream()
+        return userRepository.findByRoleAndSignupIntentNot(Role.PLANNER, SignupIntent.VENDOR).stream()
                 .map(this::toAdminPlannerListItem)
                 .sorted(java.util.Comparator.comparing(AdminPlannerListItem::joinedAt).reversed())
                 .toList();
     }
 
-    /** One planner's profile, for the admin module's read-only detail view. */
+    /**
+     * One planner's profile, for the admin module's read-only detail view.
+     * Same signupIntent=VENDOR exclusion as listPlannersForAdmin - an
+     * incomplete vendor sign-up isn't reachable through this detail view
+     * either, consistent with it never appearing in the list.
+     */
     @Transactional(readOnly = true)
     public AdminPlannerListItem getPlannerForAdmin(Long userId) {
         User planner = userRepository.findById(userId)
-                .filter(u -> u.getRole() == Role.PLANNER)
+                .filter(u -> u.getRole() == Role.PLANNER && u.getSignupIntent() != SignupIntent.VENDOR)
                 .orElseThrow(() -> new IllegalStateException("Planner not found: " + userId));
         return toAdminPlannerListItem(planner);
     }
@@ -585,6 +651,15 @@ public class UserService {
             String verifiedByAdmin,
             boolean topVendor,
             Instant createdAt) {
+    }
+
+    public record AdminIncompleteVendorSignup(
+            Long id,
+            String firstName,
+            String lastName,
+            String email,
+            String mobileNumber,
+            Instant signedUpAt) {
     }
 
     // businessPermit is gone - legal documents (any number of them) are now

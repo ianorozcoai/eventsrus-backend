@@ -2,6 +2,7 @@ package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminAccountResponse;
 import com.backend.eventsrus.dto.AdminLoginRequest;
+import com.backend.eventsrus.dto.ChangeAdminPasswordRequest;
 import com.backend.eventsrus.dto.CreateAdminAccountRequest;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.model.AdminAccount;
@@ -13,8 +14,10 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -58,6 +61,17 @@ public class AdminAccountController {
     @PostMapping("/accounts")
     public AdminAccountResponse create(@Valid @RequestBody CreateAdminAccountRequest request) {
         return toResponse(adminAccountService.create(request.getUsername(), request.getPassword()));
+    }
+
+    /**
+     * The username comes from the caller's own JWT, never from the request
+     * body - falls under SecurityConfig's blanket hasRole("ADMIN") rule
+     * just like everything else here, so this only ever changes the
+     * logged-in admin's own password.
+     */
+    @PutMapping("/accounts/me/password")
+    public void changePassword(@Valid @RequestBody ChangeAdminPasswordRequest request, Authentication authentication) {
+        adminAccountService.changePassword(authentication.getName(), request.getCurrentPassword(), request.getNewPassword());
     }
 
     private static AdminAccountResponse toResponse(AdminAccount account) {

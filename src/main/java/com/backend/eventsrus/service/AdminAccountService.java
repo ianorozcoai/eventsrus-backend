@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.exception.DuplicateAdminUsernameException;
+import com.backend.eventsrus.exception.InvalidCurrentPasswordException;
 import com.backend.eventsrus.model.AdminAccount;
 import com.backend.eventsrus.repository.AdminAccountRepository;
 import jakarta.annotation.PostConstruct;
@@ -78,6 +79,22 @@ public class AdminAccountService {
     @Transactional(readOnly = true)
     public List<AdminAccount> listAll() {
         return adminAccountRepository.findAllByOrderByCreatedAtAsc();
+    }
+
+    /**
+     * Self-service password change - username comes from the caller's own
+     * JWT (see AdminAccountController#changePassword), not a request field,
+     * so this can only ever change the logged-in admin's own password.
+     */
+    @Transactional
+    public void changePassword(String username, String currentPassword, String newPassword) {
+        AdminAccount account = findByUsername(username)
+                .orElseThrow(() -> new InvalidCurrentPasswordException("Current password is incorrect."));
+        if (!encoder.matches(currentPassword, account.getPasswordHash())) {
+            throw new InvalidCurrentPasswordException("Current password is incorrect.");
+        }
+        account.setPasswordHash(encoder.encode(newPassword));
+        adminAccountRepository.save(account);
     }
 
     private Optional<AdminAccount> findByUsername(String username) {

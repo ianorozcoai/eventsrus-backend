@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.backend.eventsrus.exception.DuplicateAdminUsernameException;
+import com.backend.eventsrus.exception.InvalidCurrentPasswordException;
 import com.backend.eventsrus.model.AdminAccount;
 import com.backend.eventsrus.repository.AdminAccountRepository;
 import java.util.List;
@@ -117,6 +118,45 @@ class AdminAccountServiceTest {
             when(adminAccountRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(a));
 
             assertThat(adminAccountService.listAll()).containsExactly(a);
+        }
+    }
+
+    @Nested
+    class ChangePassword {
+
+        @Test
+        void updatesTheHashWhenCurrentPasswordIsCorrect() {
+            AdminAccount account = new AdminAccount();
+            account.setUsername("ianadmin");
+            account.setPasswordHash(new BCryptPasswordEncoder().encode("oldPassword123"));
+            when(adminAccountRepository.findByUsernameIgnoreCase("ianadmin")).thenReturn(Optional.of(account));
+
+            adminAccountService.changePassword("ianadmin", "oldPassword123", "newPassword456");
+
+            verify(adminAccountRepository).save(account);
+            assertThat(new BCryptPasswordEncoder().matches("newPassword456", account.getPasswordHash())).isTrue();
+            assertThat(new BCryptPasswordEncoder().matches("oldPassword123", account.getPasswordHash())).isFalse();
+        }
+
+        @Test
+        void rejectsAWrongCurrentPassword() {
+            AdminAccount account = new AdminAccount();
+            account.setUsername("ianadmin");
+            account.setPasswordHash(new BCryptPasswordEncoder().encode("oldPassword123"));
+            when(adminAccountRepository.findByUsernameIgnoreCase("ianadmin")).thenReturn(Optional.of(account));
+
+            assertThatThrownBy(() -> adminAccountService.changePassword("ianadmin", "wrongPassword", "newPassword456"))
+                    .isInstanceOf(InvalidCurrentPasswordException.class);
+            verify(adminAccountRepository, never()).save(any());
+        }
+
+        @Test
+        void rejectsAnUnknownUsername() {
+            when(adminAccountRepository.findByUsernameIgnoreCase("ghost")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> adminAccountService.changePassword("ghost", "anything", "newPassword456"))
+                    .isInstanceOf(InvalidCurrentPasswordException.class);
+            verify(adminAccountRepository, never()).save(any());
         }
     }
 
