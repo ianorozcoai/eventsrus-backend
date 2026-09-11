@@ -2,6 +2,7 @@ package com.backend.eventsrus.dto;
 
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.enums.SignupIntent;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,16 @@ public class AuthResponse {
     private long expiresIn;
 
     private Role role;
+
+    /**
+     * Which door this account is permanently locked to (planner or vendor) -
+     * see UserService#findOrCreateFromGoogle. Distinct from role, which
+     * still flows PLANNER -> VENDOR once onboarding is finished: this is
+     * what eventsrus-web needs to correctly route someone mid-vendor-
+     * onboarding back to finish it, instead of treating "not yet VENDOR
+     * role" as "must be a real planner".
+     */
+    private SignupIntent signupIntent;
 
     private String firstName;
 

@@ -30,6 +30,7 @@ public class AuthService {
                 .token(token)
                 .expiresIn(jwtService.getExpirationMs() / 1000)
                 .role(user.getRole())
+                .signupIntent(user.getSignupIntent())
                 .firstName(user.getFirstName())
                 .email(user.getEmail())
                 .plan(effectivePlan.plan())
