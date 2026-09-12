@@ -1,5 +1,6 @@
 package com.backend.eventsrus.dto;
 
+import com.backend.eventsrus.enums.EventType;
 import com.backend.eventsrus.enums.QuotationStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,6 +17,7 @@ public class QuotationResponse {
     private Long id;
     private Long eventId;
     private String eventName;
+    private EventType eventType;
     private Long vendorUserId;
     private String vendorBusinessName;
     private String vendorSlug;

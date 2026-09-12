@@ -76,7 +76,7 @@ public class QuotationService {
     }
 
     @Transactional
-    public QuotationResponse respondWithPdf(String vendorEmail, Long quotationId, MultipartFile pdf) {
+    public QuotationResponse respondWithPdf(String vendorEmail, Long quotationId, MultipartFile pdf, String message) {
         User vendor = requireUser(vendorEmail);
         vendorPlanService.requireActiveSubscription(vendor.getId());
         Quotation quotation = quotationRepository.findById(quotationId)
@@ -99,7 +99,11 @@ public class QuotationService {
                 displayName(vendor) + " sent you a quotation PDF",
                 "QUOTATION", quotation.getId());
 
-        recordStatusChange(quotation, oldStatus, QuotationStatus.RESPONDED, vendor, null);
+        // message and key both land on this transition's audit row (not
+        // just the quotation itself) so this exact version - what was said,
+        // what was sent - stays reachable even after a later response
+        // overwrites Quotation#pdfKey. See #history.
+        recordStatusChange(quotation, oldStatus, QuotationStatus.RESPONDED, vendor, message, key);
         return toResponse(quotation);
     }
 
@@ -220,12 +224,19 @@ public class QuotationService {
 
     private void recordStatusChange(
             Quotation quotation, QuotationStatus fromStatus, QuotationStatus toStatus, User changedBy, String reason) {
+        recordStatusChange(quotation, fromStatus, toStatus, changedBy, reason, null);
+    }
+
+    private void recordStatusChange(
+            Quotation quotation, QuotationStatus fromStatus, QuotationStatus toStatus, User changedBy, String reason,
+            String pdfKey) {
         quotationStatusEventRepository.save(QuotationStatusEvent.builder()
                 .quotation(quotation)
                 .fromStatus(fromStatus)
                 .toStatus(toStatus)
                 .changedBy(changedBy)
                 .reason(reason)
+                .pdfKey(pdfKey)
                 .build());
     }
 
@@ -237,6 +248,7 @@ public class QuotationService {
                 .changedByUserId(event.getChangedBy().getId())
                 .changedByName(displayName(event.getChangedBy()))
                 .reason(event.getReason())
+                .pdfUrl(s3UploadService.presignedUrl(event.getPdfKey(), PDF_URL_TTL))
                 .createdAt(event.getCreatedAt())
                 .build();
     }
@@ -282,6 +294,7 @@ public class QuotationService {
                 .id(quotation.getId())
                 .eventId(quotation.getEvent().getId())
                 .eventName(quotation.getEvent().getName())
+                .eventType(quotation.getEvent().getEventType())
                 .vendorUserId(quotation.getVendorUser().getId())
                 .vendorBusinessName(vendorProfile != null ? vendorProfile.getBusinessName() : null)
                 .vendorSlug(vendorProfile != null ? vendorProfile.getSlug() : null)

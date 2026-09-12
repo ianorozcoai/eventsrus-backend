@@ -47,4 +47,11 @@ public class QuotationStatusEvent extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String reason;
+
+    // The PDF the vendor sent at exactly this RESPONDED transition - null
+    // for every other transition (REQUESTED, DECLINED). Lets an old
+    // version stay reachable even after a later response supersedes it on
+    // the quotation itself (Quotation#pdfKey only ever holds the latest).
+    @Column(name = "pdf_key")
+    private String pdfKey;
 }

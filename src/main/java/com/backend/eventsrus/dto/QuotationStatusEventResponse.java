@@ -17,5 +17,7 @@ public class QuotationStatusEventResponse {
     private Long changedByUserId;
     private String changedByName;
     private String reason;
+    /** Only present on a RESPONDED event - the PDF the vendor sent at exactly this version. */
+    private String pdfUrl;
     private Instant createdAt;
 }
