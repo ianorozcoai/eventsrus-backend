@@ -4,6 +4,7 @@ import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.VendorReferralOverviewResponse;
 import com.backend.eventsrus.dto.VendorReferralResponse;
 import com.backend.eventsrus.enums.ReferralStatus;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.model.VendorReferral;
@@ -41,15 +42,13 @@ public class VendorReferralService {
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int CODE_LENGTH = 8;
 
-    @Value("${app.referral-commission-amount:500}")
-    private BigDecimal commissionAmount;
-
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
 
     private final VendorReferralRepository vendorReferralRepository;
     private final VendorProfileRepository vendorProfileRepository;
     private final UserRepository userRepository;
+    private final SystemSettingService systemSettingService;
 
     public String generateUniqueReferralCode() {
         SecureRandom random = new SecureRandom();
@@ -109,7 +108,7 @@ public class VendorReferralService {
                 return;
             }
             referral.setStatus(ReferralStatus.CONVERTED);
-            referral.setCommissionAmount(commissionAmount);
+            referral.setCommissionAmount(systemSettingService.getBigDecimal(SystemSettingKey.REFERRAL_COMMISSION_AMOUNT));
             referral.setConvertedAt(Instant.now());
             vendorReferralRepository.save(referral);
         });

@@ -1,13 +1,13 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.enums.PlanTier;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.SubscriptionExpiredException;
 import com.backend.eventsrus.model.VendorSubscription;
 import com.backend.eventsrus.repository.VendorSubscriptionRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -24,12 +24,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class VendorPlanService {
 
-    // 1 month before expiry, per the business rule - configurable rather
-    // than hardcoded like the trial length (app.vendor-trial-months).
-    @Value("${app.subscription-warning-days:30}")
-    private int expiringSoonDays;
-
     private final VendorSubscriptionRepository vendorSubscriptionRepository;
+    private final SystemSettingService systemSettingService;
 
     public EffectivePlan getEffectivePlan(Long userId) {
         return vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
@@ -57,7 +53,8 @@ public class VendorPlanService {
             return new EffectivePlan(null, periodEnd, false, true);
         }
 
-        boolean expiringSoon = periodEnd.isBefore(now.plus(expiringSoonDays, ChronoUnit.DAYS));
+        boolean expiringSoon = periodEnd.isBefore(
+                now.plus(systemSettingService.getInt(SystemSettingKey.SUBSCRIPTION_WARNING_DAYS), ChronoUnit.DAYS));
         return new EffectivePlan(subscription.getPlan(), periodEnd, expiringSoon, false);
     }
 

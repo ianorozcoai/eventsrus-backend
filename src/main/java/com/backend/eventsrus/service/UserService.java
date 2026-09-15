@@ -14,6 +14,7 @@ import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SignupIntent;
 import com.backend.eventsrus.enums.SubscriptionStatus;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.AccountIdentityConflictException;
 import com.backend.eventsrus.exception.DuplicateUserException;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
@@ -32,7 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,11 +42,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class UserService {
 
-    // Configurable rather than hardcoded - the business wants the ability to
-    // change the free-trial length (e.g. 6 months now, 3 months later)
-    // without a code change. See application.properties.
-    @Value("${app.vendor-trial-months:6}")
-    private int vendorTrialMonths;
     // Was 10 minutes - too short for a "View current file" link sitting on
     // a settings page a vendor might leave open for a while before
     // clicking it; the link would 403 as "ExpiredRequest" by then. An hour
@@ -63,6 +58,7 @@ public class UserService {
     private final RecaptchaVerificationService recaptchaVerificationService;
     private final VendorReferralService vendorReferralService;
     private final EventRepository eventRepository;
+    private final SystemSettingService systemSettingService;
 
     /**
      * intent is "planner" or "vendor" - which login door was used (see
@@ -215,7 +211,7 @@ public class UserService {
 
         if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
-            Instant trialEnd = now.plus(vendorTrialMonths * 30L, ChronoUnit.DAYS);
+            Instant trialEnd = now.plus(systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS), ChronoUnit.DAYS);
             VendorSubscription subscription = vendorSubscriptionRepository.save(
                     VendorSubscription.builder()
                             .user(user)

@@ -23,7 +23,8 @@ import lombok.experimental.SuperBuilder;
  * UserService#becomeVendor), and flipped to CONVERTED the first time that
  * referred vendor's subscription is backed by a real PayPal payment (see
  * PayPalWebhookService's PAYMENT.SALE.COMPLETED handling). commissionAmount
- * is snapshotted at conversion time (from app.referral-commission-amount) so
+ * is snapshotted at conversion time (from the referral-commission-amount
+ * System Setting - see SystemSettingService) so
  * a later config change doesn't retroactively change what's already owed.
  * COMMISSION_PAID is set manually by an admin once the payout has actually
  * been sent - there's no automated disbursement.

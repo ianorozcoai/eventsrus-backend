@@ -51,6 +51,8 @@ class UserServiceTest {
     private VendorReferralService vendorReferralService;
     @Mock
     private EventRepository eventRepository;
+    @Mock
+    private SystemSettingService systemSettingService;
 
     private UserService userService;
 
@@ -68,7 +70,8 @@ class UserServiceTest {
                 vendorBillingHistoryService,
                 recaptchaVerificationService,
                 vendorReferralService,
-                eventRepository);
+                eventRepository,
+                systemSettingService);
     }
 
     @Nested

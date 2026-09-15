@@ -2,6 +2,7 @@ package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.dto.CoordinatorHistoryResponse;
 import com.backend.eventsrus.dto.CoordinatorQuestionResponse;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.CoordinatorQuotaExceededException;
 import com.backend.eventsrus.model.CoordinatorQuestion;
 import com.backend.eventsrus.model.Event;
@@ -12,7 +13,6 @@ import com.backend.eventsrus.repository.UserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,25 +57,26 @@ public class CoordinatorService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final AnthropicClient anthropicClient;
-    private final int dailyQuestionLimit;
+    private final SystemSettingService systemSettingService;
 
     public CoordinatorService(
             CoordinatorQuestionRepository coordinatorQuestionRepository,
             EventRepository eventRepository,
             UserRepository userRepository,
             AnthropicClient anthropicClient,
-            @Value("${app.coordinator-daily-question-limit}") int dailyQuestionLimit) {
+            SystemSettingService systemSettingService) {
         this.coordinatorQuestionRepository = coordinatorQuestionRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
         this.anthropicClient = anthropicClient;
-        this.dailyQuestionLimit = dailyQuestionLimit;
+        this.systemSettingService = systemSettingService;
     }
 
     @Transactional
     public CoordinatorQuestionResponse askQuestion(String plannerEmail, Long eventId, String question) {
         Event event = requireOwnedEvent(plannerEmail, eventId);
 
+        int dailyQuestionLimit = systemSettingService.getInt(SystemSettingKey.COORDINATOR_DAILY_QUESTION_LIMIT);
         long askedToday = coordinatorQuestionRepository.countByPlannerIdAndCreatedAtAfter(
                 event.getPlanner().getId(), startOfTodayManila());
         if (askedToday >= dailyQuestionLimit) {
@@ -104,6 +105,7 @@ public class CoordinatorService {
                 .map(this::toResponse)
                 .toList();
 
+        int dailyQuestionLimit = systemSettingService.getInt(SystemSettingKey.COORDINATOR_DAILY_QUESTION_LIMIT);
         long askedToday = coordinatorQuestionRepository.countByPlannerIdAndCreatedAtAfter(
                 event.getPlanner().getId(), startOfTodayManila());
         int remaining = (int) Math.max(0, dailyQuestionLimit - askedToday);

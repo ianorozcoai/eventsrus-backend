@@ -106,6 +106,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidSystemSettingException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSystemSetting(
+            InvalidSystemSettingException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
