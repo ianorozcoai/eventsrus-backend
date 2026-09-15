@@ -53,7 +53,7 @@ public class VendorDashboardService {
         }
 
         long newQuotations = quotationRepository.findByVendorUserIdOrderByCreatedAtDesc(vendor.getId()).stream()
-                .filter(q -> q.getStatus() == QuotationStatus.REQUESTED)
+                .filter(q -> q.getStatus() == QuotationStatus.REQUEST_FOR_QUOTE || q.getStatus() == QuotationStatus.REVISION_REQUESTED)
                 .count();
 
         var bookings = bookingRepository.findByVendorUserIdOrderByEventDatetimeAsc(vendor.getId());

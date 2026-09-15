@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -74,4 +75,38 @@ public class Quotation extends BaseEntity {
     @Column(name = "vendor_package_id")
     @Builder.Default
     private List<Long> packageIds = new ArrayList<>();
+
+    // Incremented on every negotiation step (a new ask or a new response) -
+    // see QuotationService#recordStatusChange. This is a domain-visible
+    // negotiation-round counter shown to both sides ("v3"), NOT a JPA
+    // optimistic-lock @Version - unrelated to concurrency control.
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer version = 1;
+
+    // The vendor's total for the current version - a flat number, not
+    // itemized line items (see the project's quotation-booking-target-
+    // state-machine memory for why that's out of scope for now).
+    @Column(name = "quoted_amount")
+    private BigDecimal quotedAmount;
+
+    // Set when the planner accepts a QUOTE_SENT/REVISION_SENT quote - see
+    // QuotationService#acceptQuote. From this point the quote is frozen (no
+    // more revisions/decline) per the Booking Conversion rule.
+    @Column(name = "accepted_at")
+    private Instant acceptedAt;
+
+    // Deposit/payment proof - same private-bucket-key + presigned-URL
+    // convention as Booking#paymentScreenshotKey, just living on the
+    // Quotation now since payment review happens before a Booking exists.
+    @Column(name = "payment_screenshot_key")
+    private String paymentScreenshotKey;
+
+    @Column(name = "payment_screenshot_uploaded_at")
+    private Instant paymentScreenshotUploadedAt;
+
+    // Set by the vendor on reject; cleared when the planner resubmits - see
+    // QuotationService#rejectPaymentScreenshot/#submitPaymentScreenshot.
+    @Column(name = "payment_rejection_reason", columnDefinition = "TEXT")
+    private String paymentRejectionReason;
 }

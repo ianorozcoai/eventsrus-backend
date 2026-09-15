@@ -2,6 +2,7 @@ package com.backend.eventsrus.dto;
 
 import com.backend.eventsrus.enums.EventType;
 import com.backend.eventsrus.enums.QuotationStatus;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,8 +26,13 @@ public class QuotationResponse {
     private LocalDate targetDate;
     private String requestMessage;
     private QuotationStatus status;
+    private Integer version;
+    private BigDecimal quotedAmount;
     private String pdfUrl;
     private Instant respondedAt;
+    private Instant acceptedAt;
+    private String paymentScreenshotUrl;
+    private String paymentRejectionReason;
     private Instant createdAt;
     private List<Long> packageIds;
     private List<String> packageNames;

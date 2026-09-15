@@ -62,6 +62,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(QuotationConflictException.class)
+    public ResponseEntity<ErrorResponse> handleQuotationConflict(
+            QuotationConflictException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(SubscriptionExpiredException.class)
     public ResponseEntity<ErrorResponse> handleSubscriptionExpired(
             SubscriptionExpiredException ex, HttpServletRequest request) {

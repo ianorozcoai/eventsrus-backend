@@ -113,7 +113,13 @@ public class BookingService {
         if (!quotation.getPlannerUser().getId().equals(planner.getId())) {
             throw new IllegalStateException("Quotation does not belong to the authenticated planner");
         }
-        if (quotation.getStatus() != QuotationStatus.RESPONDED) {
+        // QuotationStatus.RESPONDED was renamed QUOTE_SENT (Phase 1 of the
+        // lifecycle rework) - this whole codepath is superseded by
+        // QuotationService#acceptBooking for any NEW quotation going
+        // forward (see that class's javadoc), left here unchanged in
+        // spirit purely so a booking already mid-flow through this old path
+        // before the rework keeps working.
+        if (quotation.getStatus() != QuotationStatus.QUOTE_SENT && quotation.getStatus() != QuotationStatus.REVISION_SENT) {
             throw new IllegalStateException("Quotation has not been responded to yet: " + quotationId);
         }
         if (bookingRepository.existsByQuotationId(quotationId)) {

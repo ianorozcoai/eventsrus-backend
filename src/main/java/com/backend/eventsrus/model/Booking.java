@@ -2,6 +2,7 @@ package com.backend.eventsrus.model;
 
 import com.backend.eventsrus.common.BaseEntity;
 import com.backend.eventsrus.enums.BookingStatus;
+import com.backend.eventsrus.enums.PaymentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -108,4 +109,15 @@ public class Booking extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cancelled_by_user_id")
     private User cancelledBy;
+
+    // Only set on a Booking created via QuotationService#acceptBooking (the
+    // new quotation-driven flow, Phase 1 of the lifecycle rework) - null for
+    // a vendor cold-proposal and for any booking that predates this.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type")
+    private PaymentType paymentType;
+
+    // The vendor's confirmation message entered when accepting the booking - same call as paymentType above.
+    @Column(name = "confirmation_message", columnDefinition = "TEXT")
+    private String confirmationMessage;
 }

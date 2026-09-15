@@ -11,4 +11,6 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
     List<Quotation> findByVendorUserIdOrderByCreatedAtDesc(Long vendorUserId);
 
     List<Quotation> findByPlannerUserIdOrderByCreatedAtDesc(Long plannerUserId);
+
+    boolean existsByEventIdAndVendorUserId(Long eventId, Long vendorUserId);
 }
