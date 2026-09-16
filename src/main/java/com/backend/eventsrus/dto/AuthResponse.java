@@ -37,6 +37,8 @@ public class AuthResponse {
 
     private String firstName;
 
+    private String lastName;
+
     private String email;
 
     /** Null means the effective plan is FREE (no active PRO/PREMIUM subscription). */

@@ -32,6 +32,7 @@ public class AuthService {
                 .role(user.getRole())
                 .signupIntent(user.getSignupIntent())
                 .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .email(user.getEmail())
                 .plan(effectivePlan.plan())
                 .planExpiresAt(effectivePlan.expiresAt())
