@@ -73,4 +73,13 @@ public class User extends BaseEntity {
 
     @Column(name = "postal_code")
     private String postalCode;
+
+    // When this user (a vendor, in practice) last looked at their
+    // Quotations/Bookings nav pages - see BadgeService. Null means "never",
+    // so everything counts as unseen until their first visit.
+    @Column(name = "quotations_badge_seen_at")
+    private Instant quotationsBadgeSeenAt;
+
+    @Column(name = "bookings_badge_seen_at")
+    private Instant bookingsBadgeSeenAt;
 }

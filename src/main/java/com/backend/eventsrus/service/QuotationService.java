@@ -270,26 +270,48 @@ public class QuotationService {
 
     /**
      * Planner accepts a QUOTE_SENT/REVISION_SENT quote - the moment the
-     * quote freezes (Booking Conversion rule). A payment screenshot can be
-     * attached right here (same UX the old "Book This" modal always had);
-     * per the spec this is one action that auto-resolves to either
-     * PENDING_DEPOSIT (no screenshot yet) or PAYMENT_REVIEW (one attached) -
-     * QUOTE_ACCEPTED itself is recorded in the history but never a resting
-     * status (see QuotationStatus javadoc).
+     * quote freezes (Booking Conversion rule). Not necessarily the LATEST
+     * version: a planner who went back and forth on a revision might still
+     * prefer an earlier offer (a lower price, different inclusions) over
+     * whatever the vendor sent most recently, so acceptedVersion lets her
+     * pick which sent version's terms actually get locked in - null means
+     * "the current/latest one", preserving the old behavior. Locking in an
+     * older version overwrites the quotation's live amount/date/packages/
+     * PDF with that version's own snapshot (see QuotationStatusEvent),
+     * exactly as if the vendor had sent that offer last.
+     * A payment screenshot can be attached right here (same UX the old
+     * "Book This" modal always had); per the spec this is one action that
+     * auto-resolves to either PENDING_DEPOSIT (no screenshot yet) or
+     * PAYMENT_REVIEW (one attached) - QUOTE_ACCEPTED itself is recorded in
+     * the history but never a resting status (see QuotationStatus javadoc).
      */
     @Transactional
-    public QuotationResponse acceptQuote(String plannerEmail, Long quotationId, MultipartFile screenshot) {
+    public QuotationResponse acceptQuote(
+            String plannerEmail, Long quotationId, Integer acceptedVersion, String message, MultipartFile screenshot) {
         User planner = requireUser(plannerEmail);
         Quotation quotation = requirePlannerOwnedQuotation(planner, quotationId);
         if (quotation.getStatus() != QuotationStatus.QUOTE_SENT && quotation.getStatus() != QuotationStatus.REVISION_SENT) {
             throw new IllegalStateException("Only a sent quotation can be accepted: " + quotationId);
         }
 
+        int versionToAccept = acceptedVersion != null ? acceptedVersion : quotation.getVersion();
+        QuotationStatusEvent acceptedOffer = quotationStatusEventRepository
+                .findFirstByQuotationIdAndVersionAndToStatusIn(
+                        quotationId, versionToAccept, List.of(QuotationStatus.QUOTE_SENT, QuotationStatus.REVISION_SENT))
+                .orElseThrow(() -> new IllegalStateException("No sent quote found for version " + versionToAccept));
+
         QuotationStatus oldStatus = quotation.getStatus();
+        // Lock in the CHOSEN version's terms, not necessarily whatever the
+        // quotation's live fields currently hold - if she picked an earlier
+        // offer, this is what makes that the one that's actually accepted.
+        quotation.setQuotedAmount(acceptedOffer.getQuotedAmount());
+        quotation.setTargetDate(acceptedOffer.getTargetDate());
+        quotation.setPackageIds(new ArrayList<>(acceptedOffer.getPackageIds()));
+        quotation.setPdfKey(acceptedOffer.getPdfKey());
         quotation.setAcceptedAt(Instant.now());
         quotationRepository.save(quotation);
-        recordStatusChange(quotation, oldStatus, QuotationStatus.QUOTE_ACCEPTED, planner, null, null,
-                quotation.getQuotedAmount(), quotation.getTargetDate(), quotation.getPackageIds());
+        recordStatusChange(quotation, oldStatus, QuotationStatus.QUOTE_ACCEPTED, planner, message,
+                acceptedOffer.getPdfKey(), quotation.getQuotedAmount(), quotation.getTargetDate(), quotation.getPackageIds());
 
         notificationService.notify(quotation.getVendorUser(), NotificationType.QUOTATION_ACCEPTED,
                 "Quotation accepted",
@@ -337,7 +359,8 @@ public class QuotationService {
                 displayName(planner) + " uploaded a payment screenshot for your review",
                 "QUOTATION", quotation.getId());
 
-        recordStatusChange(quotation, oldStatus, QuotationStatus.PAYMENT_REVIEW, planner, null, null, null, null, null);
+        recordStatusChange(quotation, oldStatus, QuotationStatus.PAYMENT_REVIEW, planner, null, null, null, null,
+                null, key, null);
         return toResponse(quotation);
     }
 
@@ -431,7 +454,7 @@ public class QuotationService {
 
         recordStatusChange(quotation, QuotationStatus.PAYMENT_REVIEW, QuotationStatus.BOOKED, vendor,
                 confirmationMessage, null, quotation.getQuotedAmount(), quotation.getTargetDate(),
-                quotation.getPackageIds());
+                quotation.getPackageIds(), null, invoiceKey);
         return toResponse(quotation);
     }
 
@@ -446,8 +469,9 @@ public class QuotationService {
             throw new IllegalStateException("Quotation does not belong to the authenticated user");
         }
 
+        Long vendorUserId = quotation.getVendorUser().getId();
         return quotationStatusEventRepository.findByQuotationIdOrderByCreatedAtAsc(quotationId).stream()
-                .map(this::toStatusEventResponse)
+                .map(event -> toStatusEventResponse(event, vendorUserId))
                 .toList();
     }
 
@@ -487,6 +511,14 @@ public class QuotationService {
     private void recordStatusChange(
             Quotation quotation, QuotationStatus fromStatus, QuotationStatus toStatus, User changedBy, String reason,
             String pdfKey, BigDecimal quotedAmount, LocalDate targetDate, List<Long> packageIds) {
+        recordStatusChange(quotation, fromStatus, toStatus, changedBy, reason, pdfKey, quotedAmount, targetDate,
+                packageIds, null, null);
+    }
+
+    private void recordStatusChange(
+            Quotation quotation, QuotationStatus fromStatus, QuotationStatus toStatus, User changedBy, String reason,
+            String pdfKey, BigDecimal quotedAmount, LocalDate targetDate, List<Long> packageIds,
+            String paymentScreenshotKey, String invoiceKey) {
         // A fresh ArrayList, never the same List instance backing
         // Quotation#packageIds - passing that reference straight through
         // makes Hibernate see one Java collection object attached to two
@@ -503,10 +535,12 @@ public class QuotationService {
                 .quotedAmount(quotedAmount)
                 .targetDate(targetDate)
                 .packageIds(packageIds == null ? new ArrayList<>() : new ArrayList<>(packageIds))
+                .paymentScreenshotKey(paymentScreenshotKey)
+                .invoiceKey(invoiceKey)
                 .build());
     }
 
-    private QuotationStatusEventResponse toStatusEventResponse(QuotationStatusEvent event) {
+    private QuotationStatusEventResponse toStatusEventResponse(QuotationStatusEvent event, Long vendorUserId) {
         List<String> packageNames = event.getPackageIds().isEmpty()
                 ? List.of()
                 : vendorPackageRepository.findAllById(event.getPackageIds()).stream()
@@ -517,15 +551,35 @@ public class QuotationService {
                 .fromStatus(event.getFromStatus())
                 .toStatus(event.getToStatus())
                 .changedByUserId(event.getChangedBy().getId())
-                .changedByName(displayName(event.getChangedBy()))
+                .changedByName(historyChangedByName(event.getChangedBy(), vendorUserId))
                 .reason(event.getReason())
                 .pdfUrl(s3UploadService.presignedUrl(event.getPdfKey(), FILE_URL_TTL))
                 .version(event.getVersion())
                 .quotedAmount(event.getQuotedAmount())
                 .targetDate(event.getTargetDate())
                 .packageNames(packageNames)
+                .paymentScreenshotUrl(s3UploadService.presignedUrl(event.getPaymentScreenshotKey(), FILE_URL_TTL))
+                .invoiceUrl(s3UploadService.presignedUrl(event.getInvoiceKey(), FILE_URL_TTL))
                 .createdAt(event.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * The vendor's own business name reads far better in a negotiation
+     * history than their personal Google account name/email - "Golden
+     * Frame Photo & Films sent a quotation" means something to the
+     * planner reading it, their raw account name doesn't. Only applies
+     * when the change was made by the vendor side of this quotation; a
+     * planner's own entries still show their personal name as before.
+     * Falls back to displayName if the vendor somehow has no profile yet.
+     */
+    private String historyChangedByName(User changedBy, Long vendorUserId) {
+        if (!changedBy.getId().equals(vendorUserId)) {
+            return displayName(changedBy);
+        }
+        return vendorProfileRepository.findByUserId(vendorUserId)
+                .map(VendorProfile::getBusinessName)
+                .orElseGet(() -> displayName(changedBy));
     }
 
     @Transactional(readOnly = true)

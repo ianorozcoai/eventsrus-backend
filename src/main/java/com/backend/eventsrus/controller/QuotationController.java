@@ -6,6 +6,7 @@ import com.backend.eventsrus.dto.QuotationResponse;
 import com.backend.eventsrus.dto.QuotationRevisionRequest;
 import com.backend.eventsrus.dto.QuotationStatusEventResponse;
 import com.backend.eventsrus.enums.PaymentType;
+import com.backend.eventsrus.service.BadgeService;
 import com.backend.eventsrus.service.QuotationService;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -29,6 +30,18 @@ import org.springframework.web.multipart.MultipartFile;
 public class QuotationController {
 
     private final QuotationService quotationService;
+    private final BadgeService badgeService;
+
+    // Loading the vendor's own Quotations page is exactly the "seen it"
+    // moment for the nav badge (see BadgeService) - a distinct call the web
+    // app's VendorController makes itself when rendering that page, not a
+    // side effect of #listForVendor below (which other pages call too, in
+    // passing, and must never silently clear a badge nobody actually looked
+    // at).
+    @PutMapping("/api/v1/vendors/me/quotations/mark-seen")
+    public void markSeen(Authentication authentication) {
+        badgeService.markVendorQuotationsSeen(authentication.getName());
+    }
 
     @PostMapping("/api/v1/events/{eventId}/vendors/{vendorUserId}/quotations")
     public QuotationResponse requestQuotation(
@@ -93,14 +106,17 @@ public class QuotationController {
     }
 
     // Planner accepts a QUOTE_SENT/REVISION_SENT quote - screenshot is
-    // optional here (same combined UX the old "Book This" modal had); see
+    // optional here (same combined UX the old "Book This" modal had);
+    // acceptedVersion is optional too (null = the current/latest version),
+    // since a planner can choose to lock in an earlier offer instead - see
     // QuotationService#acceptQuote for the auto-resolve-to-PENDING_DEPOSIT-
     // or-PAYMENT_REVIEW behavior.
     @PostMapping(path = "/api/v1/quotations/{quotationId}/accept", consumes = "multipart/form-data")
     public QuotationResponse accept(
-            @PathVariable Long quotationId, @RequestPart(required = false) MultipartFile screenshot,
+            @PathVariable Long quotationId, @RequestParam(required = false) Integer acceptedVersion,
+            @RequestParam(required = false) String message, @RequestPart(required = false) MultipartFile screenshot,
             Authentication authentication) {
-        return quotationService.acceptQuote(authentication.getName(), quotationId, screenshot);
+        return quotationService.acceptQuote(authentication.getName(), quotationId, acceptedVersion, message, screenshot);
     }
 
     // Standalone upload - for a planner who accepted without a screenshot

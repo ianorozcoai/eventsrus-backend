@@ -30,6 +30,7 @@ public class VendorDashboardService {
     private final QuotationRepository quotationRepository;
     private final BookingRepository bookingRepository;
     private final VendorPackageService vendorPackageService;
+    private final BadgeService badgeService;
 
     @Transactional(readOnly = true)
     public VendorDashboardResponse getDashboard(String vendorEmail) {
@@ -87,6 +88,8 @@ public class VendorDashboardService {
                 .totalIncome(totalIncome)
                 .cancellationsCount(cancellations)
                 .hasPackages(vendorPackageService.hasAnyPackages(vendorEmail))
+                .quotationsUnseenCount(badgeService.countUnseenQuotationsForVendor(vendor.getId()))
+                .bookingsUnseenCount(badgeService.countUnseenBookingsForVendor(vendor.getId()))
                 .build();
     }
 }

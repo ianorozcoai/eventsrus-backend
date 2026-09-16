@@ -6,6 +6,7 @@ import com.backend.eventsrus.dto.BookingResponse;
 import com.backend.eventsrus.dto.BookingStatusEventResponse;
 import com.backend.eventsrus.dto.CancelBookingRequest;
 import com.backend.eventsrus.dto.PaymentRejectionRequest;
+import com.backend.eventsrus.service.BadgeService;
 import com.backend.eventsrus.service.BookingService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,6 +28,14 @@ import org.springframework.web.multipart.MultipartFile;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final BadgeService badgeService;
+
+    // See QuotationController#markSeen for why this is its own call rather
+    // than a side effect of #listForVendor below.
+    @PutMapping("/api/v1/vendors/me/bookings/mark-seen")
+    public void markSeen(Authentication authentication) {
+        badgeService.markVendorBookingsSeen(authentication.getName());
+    }
 
     @PostMapping("/api/v1/events/{eventId}/vendors/me/bookings")
     public BookingResponse propose(

@@ -28,5 +28,9 @@ public class QuotationStatusEventResponse {
     /** Only present on a REQUEST_FOR_QUOTE/REVISION_REQUESTED event - the target date asked for at exactly this version. */
     private LocalDate targetDate;
     private List<String> packageNames;
+    /** Only present on a PAYMENT_REVIEW event - the screenshot under review at that point. */
+    private String paymentScreenshotUrl;
+    /** Only present on a BOOKED event - the invoice/receipt the vendor attached to confirm the booking. */
+    private String invoiceUrl;
     private Instant createdAt;
 }

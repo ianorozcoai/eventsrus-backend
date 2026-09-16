@@ -86,4 +86,16 @@ public class QuotationStatusEvent extends BaseEntity {
     @Column(name = "vendor_package_id")
     @Builder.Default
     private List<Long> packageIds = new ArrayList<>();
+
+    // Only set on a PAYMENT_REVIEW row - the screenshot that was actually
+    // under review at that point (Quotation#paymentScreenshotKey only ever
+    // holds whatever was most recently submitted, which a later
+    // resubmission after a rejection overwrites).
+    @Column(name = "payment_screenshot_key")
+    private String paymentScreenshotKey;
+
+    // Only set on a BOOKED row - the invoice/receipt the vendor attached
+    // when confirming the booking (see QuotationService#acceptBooking).
+    @Column(name = "invoice_key")
+    private String invoiceKey;
 }

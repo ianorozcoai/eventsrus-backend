@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import com.backend.eventsrus.repository.VendorPackageRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -216,13 +218,24 @@ class QuotationServiceTest {
     @Nested
     class AcceptQuote {
 
+        private QuotationStatusEvent sentOfferEvent(QuotationStatus toStatus) {
+            return QuotationStatusEvent.builder()
+                    .toStatus(toStatus).version(1).quotedAmount(new BigDecimal("50000"))
+                    .targetDate(LocalDate.of(2026, 10, 10)).pdfKey("quotations/42-abc.pdf")
+                    .packageIds(new ArrayList<>())
+                    .build();
+        }
+
         @Test
         void withoutAScreenshotResolvesToPendingDeposit() {
             Quotation quotation = quotationAt(QuotationStatus.QUOTE_SENT);
             when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
             when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+            when(quotationStatusEventRepository.findFirstByQuotationIdAndVersionAndToStatusIn(
+                    eq(42L), eq(1), any()))
+                    .thenReturn(Optional.of(sentOfferEvent(QuotationStatus.QUOTE_SENT)));
 
-            quotationService.acceptQuote("planner@example.com", 42L, null);
+            quotationService.acceptQuote("planner@example.com", 42L, null, null, null);
 
             assertThat(quotation.getStatus()).isEqualTo(QuotationStatus.PENDING_DEPOSIT);
             assertThat(quotation.getAcceptedAt()).isNotNull();
@@ -235,15 +248,38 @@ class QuotationServiceTest {
             Quotation quotation = quotationAt(QuotationStatus.QUOTE_SENT);
             when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
             when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+            when(quotationStatusEventRepository.findFirstByQuotationIdAndVersionAndToStatusIn(
+                    eq(42L), eq(1), any()))
+                    .thenReturn(Optional.of(sentOfferEvent(QuotationStatus.QUOTE_SENT)));
             when(s3UploadService.upload(any(), anyString(), any()))
                     .thenReturn(new S3UploadService.UploadResult("quotations/42/payment-screenshot-abc.jpg", null));
 
             MockMultipartFile screenshot =
                     new MockMultipartFile("screenshot", "proof.jpg", "image/jpeg", "img".getBytes());
-            quotationService.acceptQuote("planner@example.com", 42L, screenshot);
+            quotationService.acceptQuote("planner@example.com", 42L, null, null, screenshot);
 
             assertThat(quotation.getStatus()).isEqualTo(QuotationStatus.PAYMENT_REVIEW);
             assertThat(quotation.getPaymentScreenshotKey()).isEqualTo("quotations/42/payment-screenshot-abc.jpg");
+        }
+
+        @Test
+        void acceptingAnEarlierVersionLocksInThatVersionsTerms() {
+            Quotation quotation = quotationAt(QuotationStatus.REVISION_SENT);
+            quotation.setVersion(3);
+            quotation.setQuotedAmount(new BigDecimal("95000"));
+            when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+            when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+            QuotationStatusEvent earlierOffer = sentOfferEvent(QuotationStatus.QUOTE_SENT);
+            earlierOffer.setQuotedAmount(new BigDecimal("75000"));
+            earlierOffer.setPdfKey("quotations/42-v1.pdf");
+            when(quotationStatusEventRepository.findFirstByQuotationIdAndVersionAndToStatusIn(
+                    eq(42L), eq(1), any()))
+                    .thenReturn(Optional.of(earlierOffer));
+
+            quotationService.acceptQuote("planner@example.com", 42L, 1, "I'd like this earlier offer instead", null);
+
+            assertThat(quotation.getQuotedAmount()).isEqualByComparingTo("75000");
+            assertThat(quotation.getPdfKey()).isEqualTo("quotations/42-v1.pdf");
         }
 
         @Test
@@ -252,7 +288,20 @@ class QuotationServiceTest {
             when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
             when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
 
-            assertThatThrownBy(() -> quotationService.acceptQuote("planner@example.com", 42L, null))
+            assertThatThrownBy(() -> quotationService.acceptQuote("planner@example.com", 42L, null, null, null))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        void rejectsAcceptingAVersionThatWasNeverActuallySent() {
+            Quotation quotation = quotationAt(QuotationStatus.QUOTE_SENT);
+            when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+            when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+            when(quotationStatusEventRepository.findFirstByQuotationIdAndVersionAndToStatusIn(
+                    eq(42L), eq(99), any()))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> quotationService.acceptQuote("planner@example.com", 42L, 99, null, null))
                     .isInstanceOf(IllegalStateException.class);
         }
     }
