@@ -18,7 +18,10 @@ public class BookingResponse {
     private Long vendorUserId;
     private String vendorBusinessName;
     private String vendorSlug;
+    private String cancellationPolicyUrl;
+    private String refundTermsUrl;
     private Long plannerUserId;
+    private String plannerName;
     private Long quotationId;
     private BigDecimal price;
     private Instant eventDatetime;

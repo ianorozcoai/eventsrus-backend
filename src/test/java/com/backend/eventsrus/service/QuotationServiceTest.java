@@ -172,6 +172,64 @@ class QuotationServiceTest {
     }
 
     @Nested
+    class RequestRevision {
+
+        /**
+         * Regression test: requestRevision used to increment Quotation#version
+         * itself, on top of respondWithPdf's own increment - so a single
+         * revision cycle (vendor sends v1 -> planner asks for a revision ->
+         * vendor sends v2) burned two version numbers and the vendor's second
+         * real file showed up mislabeled v3.
+         */
+        @Test
+        void doesNotIncrementVersionByItself() {
+            Quotation quotation = quotationAt(QuotationStatus.QUOTE_SENT);
+            quotation.setVersion(1);
+            when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+            when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+
+            quotationService.requestRevision("planner@example.com", 42L, null, "Please lower the price", null);
+
+            assertThat(quotation.getVersion()).isEqualTo(1);
+            assertThat(quotation.getStatus()).isEqualTo(QuotationStatus.REVISION_REQUESTED);
+        }
+
+        @Test
+        void aFullRevisionCycleLandsTheVendorsSecondFileOnVersionTwo() {
+            // Vendor's first real file is already sent and sitting at v1
+            // (e.g. via createFromChat, which starts a quote at version 1
+            // with no separate REQUEST_FOR_QUOTE stage) - the planner then
+            // asks for a revision, and the vendor sends a second file. That
+            // second file must land on v2, not v3.
+            Quotation quotation = quotationAt(QuotationStatus.QUOTE_SENT);
+            quotation.setVersion(1);
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR));
+            when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+            when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+            when(s3UploadService.upload(any(), anyString(), any()))
+                    .thenReturn(new S3UploadService.UploadResult("quotations/42-v2.pdf", null));
+
+            quotationService.requestRevision("planner@example.com", 42L, null, "Please lower the price", null);
+            assertThat(quotation.getVersion()).isEqualTo(1);
+
+            MockMultipartFile secondPdf = new MockMultipartFile("pdf", "quote.pdf", "application/pdf", "v2".getBytes());
+            quotationService.respondWithPdf("vendor@example.com", 42L, secondPdf, null, new BigDecimal("45000"));
+            assertThat(quotation.getVersion()).isEqualTo(2);
+        }
+
+        @Test
+        void rejectsRevisingAQuotationThatIsNotSent() {
+            Quotation quotation = quotationAt(QuotationStatus.REQUEST_FOR_QUOTE);
+            when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+            when(quotationRepository.findById(42L)).thenReturn(Optional.of(quotation));
+
+            assertThatThrownBy(() -> quotationService.requestRevision(
+                    "planner@example.com", 42L, null, "Please lower the price", null))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
     class CreateFromChat {
 
         @Test

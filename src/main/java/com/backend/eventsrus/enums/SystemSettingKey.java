@@ -22,6 +22,11 @@ public enum SystemSettingKey {
             "Subscription expiry warning window (days)",
             "How many days before a vendor's subscription expires the renewal prompt starts showing.",
             "30"),
+    SUBSCRIPTION_GRACE_PERIOD_DAYS(
+            "subscription-grace-period-days",
+            "Subscription grace period (days)",
+            "How many days after a vendor's subscription expires they keep full features and stay recommended to planners before being treated as fully expired.",
+            "30"),
     REFERRAL_COMMISSION_AMOUNT(
             "referral-commission-amount",
             "Referral commission amount (PHP)",
@@ -31,7 +36,17 @@ public enum SystemSettingKey {
             "coordinator-daily-question-limit",
             "AI Coordinator daily question limit",
             "Maximum number of questions a planner can ask the AI Events Coordinator per day.",
-            "20");
+            "20"),
+    VENDOR_GALLERY_PHOTO_LIMIT(
+            "vendor-gallery-photo-limit",
+            "Vendor gallery photo limit",
+            "Maximum number of standalone (not tied to a package) storefront gallery photos a vendor can upload.",
+            "20"),
+    VENDOR_PACKAGE_PHOTO_LIMIT(
+            "vendor-package-photo-limit",
+            "Vendor package photo limit",
+            "Maximum number of photos a vendor can attach to a single package.",
+            "10");
 
     private final String key;
     private final String label;

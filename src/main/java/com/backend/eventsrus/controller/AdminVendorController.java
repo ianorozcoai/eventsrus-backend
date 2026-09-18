@@ -1,10 +1,14 @@
 package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
+import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
+import com.backend.eventsrus.enums.ReferralStatus;
 import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
+import com.backend.eventsrus.service.VendorReferralService;
+import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +32,7 @@ public class AdminVendorController {
 
     private final UserService userService;
     private final ReviewService reviewService;
+    private final VendorReferralService vendorReferralService;
 
     /** The review queue - every vendor, regardless of verification state. */
     @GetMapping
@@ -52,6 +57,7 @@ public class AdminVendorController {
                         .verifiedByAdmin(v.verifiedByAdmin())
                         .topVendor(v.topVendor())
                         .createdAt(v.createdAt())
+                        .referralCount(v.referralCount())
                         .build())
                 .toList();
     }
@@ -113,5 +119,26 @@ public class AdminVendorController {
     @PostMapping("/{userId}/unmark-top")
     public void unmarkTop(@PathVariable Long userId) {
         userService.setTopVendor(userId, false);
+    }
+
+    /** Whichever referral (if any) this vendor was the referred party on - null if they arrived unreferred. */
+    @GetMapping("/{userId}/referral")
+    public AdminReferralResponse getReferral(@PathVariable Long userId) {
+        return vendorReferralService.findForReferredVendor(userId).orElse(null);
+    }
+
+    /**
+     * Support-desk fix for a referral that was never attributed at signup
+     * (e.g. the referred vendor forgot to use the link) - see
+     * VendorReferralService#createManualReferral. Unlike normal onboarding
+     * attribution, every failure here is a real error the admin sees, and
+     * the admin picks the resulting status directly since the referred
+     * vendor may already have paid before this gets fixed.
+     */
+    @PostMapping("/{userId}/referral")
+    public void tagReferral(
+            @PathVariable Long userId, @RequestParam String referrerCode, @RequestParam ReferralStatus status,
+            @RequestParam(required = false) BigDecimal commissionAmount) {
+        vendorReferralService.createManualReferral(userId, referrerCode, status, commissionAmount);
     }
 }

@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.dto.VendorPackageImageResponse;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorPackage;
@@ -39,6 +40,7 @@ public class VendorPackageImageService {
     private final VendorProfileRepository vendorProfileRepository;
     private final UserRepository userRepository;
     private final S3UploadService s3UploadService;
+    private final SystemSettingService systemSettingService;
 
     @Transactional
     public VendorPackageImageResponse create(String vendorEmail, Long packageId, MultipartFile image, String caption) {
@@ -49,6 +51,12 @@ public class VendorPackageImageService {
             throw new InvalidFileTypeException("Only PNG or JPEG images are accepted for package photos");
         }
         VendorPackage pkg = requireOwnedPackage(vendorEmail, packageId);
+
+        int limit = systemSettingService.getInt(SystemSettingKey.VENDOR_PACKAGE_PHOTO_LIMIT);
+        if (vendorPackageImageRepository.countByVendorPackageId(packageId) >= limit) {
+            throw new InvalidFileTypeException("You've reached the maximum of " + limit + " photos for this package.");
+        }
+
         String imageUrl = s3UploadService
                 .upload(image, keyPrefix(pkg.getVendorProfile().getUser().getId(), packageId), S3UploadService.Visibility.PUBLIC)
                 .url();

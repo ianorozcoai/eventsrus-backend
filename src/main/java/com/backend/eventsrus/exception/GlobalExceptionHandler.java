@@ -86,6 +86,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidReferralCodeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidReferralCode(
+            InvalidReferralCodeException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(PayPalApiException.class)
     public ResponseEntity<ErrorResponse> handlePayPalApiException(
             PayPalApiException ex, HttpServletRequest request) {

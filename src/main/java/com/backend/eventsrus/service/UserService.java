@@ -134,6 +134,10 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + email));
 
+        // Fail fast on a typo'd/unknown referral code before doing any
+        // uploads below - a blank code is fine (referral is optional).
+        vendorReferralService.requireValidReferralCodeIfPresent(request.getReferralCode());
+
         VendorProfile profile = vendorProfileRepository.findByUserId(user.getId())
                 .orElseGet(() -> VendorProfile.builder().user(user).build());
 
@@ -203,10 +207,12 @@ public class UserService {
         user.setTermsVersion(TermsConstants.CURRENT_VERSION);
         userRepository.save(user);
 
-        // No-ops silently on a missing/invalid/self/duplicate code - see
-        // VendorReferralService#attribute's Javadoc. Safe to call on every
-        // becomeVendor call (including a re-submit by an already-onboarded
-        // vendor) since it only ever attributes once per referred user.
+        // A missing code, or a re-submit by an already-attributed vendor, is
+        // a silent no-op - safe to call on every becomeVendor call. An
+        // unknown code was already rejected above by
+        // requireValidReferralCodeIfPresent, so that branch shouldn't
+        // trigger here in practice - see VendorReferralService#attribute's
+        // Javadoc.
         vendorReferralService.attribute(user, request.getReferralCode());
 
         if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
@@ -274,7 +280,8 @@ public class UserService {
                         profile.getVerifiedAt(),
                         profile.getVerifiedByAdmin(),
                         profile.isTopVendor(),
-                        profile.getCreatedAt()))
+                        profile.getCreatedAt(),
+                        vendorReferralService.countReferralsMade(profile.getUser().getId())))
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
     }
@@ -646,7 +653,8 @@ public class UserService {
             Instant verifiedAt,
             String verifiedByAdmin,
             boolean topVendor,
-            Instant createdAt) {
+            Instant createdAt,
+            long referralCount) {
     }
 
     public record AdminIncompleteVendorSignup(

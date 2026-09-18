@@ -5,6 +5,7 @@ import com.backend.eventsrus.dto.VendorReferralOverviewResponse;
 import com.backend.eventsrus.dto.VendorReferralResponse;
 import com.backend.eventsrus.enums.ReferralStatus;
 import com.backend.eventsrus.enums.SystemSettingKey;
+import com.backend.eventsrus.exception.InvalidReferralCodeException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.model.VendorReferral;
@@ -17,6 +18,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,9 +66,13 @@ public class VendorReferralService {
     }
 
     /**
-     * Called from UserService#becomeVendor right after a vendor's profile is
-     * created. Silently no-ops on any invalid/self/duplicate case - a bad or
-     * missing referral code must never block onboarding.
+     * A blank code is fine (referral is optional); an already-attributed
+     * referred user is a silent no-op too (re-submitting onboarding must
+     * stay safe, and first referral always wins). A non-blank code that
+     * doesn't resolve to any vendor is the one case that's a real error -
+     * see requireValidReferralCodeIfPresent, called early in
+     * UserService#becomeVendor so a typo'd code fails fast, before any
+     * uploads happen, rather than surfacing all the way down here.
      */
     @Transactional
     public void attribute(User referredUser, String rawReferralCode) {
@@ -77,12 +83,9 @@ public class VendorReferralService {
             return; // first referral wins - already attributed
         }
 
-        String code = rawReferralCode.trim().toUpperCase(Locale.ROOT);
-        VendorProfile referrerProfile = vendorProfileRepository.findByReferralCode(code).orElse(null);
-        if (referrerProfile == null) {
-            log.warn("Ignoring unknown referral code at onboarding: {}", code);
-            return;
-        }
+        VendorProfile referrerProfile = findByReferralCode(rawReferralCode)
+                .orElseThrow(() -> new InvalidReferralCodeException(
+                        "We couldn't find a vendor with referral code \"" + rawReferralCode.trim() + "\"."));
         if (referrerProfile.getUser().getId().equals(referredUser.getId())) {
             log.warn("Ignoring self-referral attempt for user {}", referredUser.getId());
             return;
@@ -93,6 +96,69 @@ public class VendorReferralService {
                 .referred(referredUser)
                 .status(ReferralStatus.PENDING)
                 .build());
+    }
+
+    /**
+     * Fails fast on a typo'd/unknown referral code at the very start of
+     * onboarding, before any files are uploaded - see UserService#becomeVendor.
+     * A blank code is fine (referral is optional).
+     */
+    @Transactional(readOnly = true)
+    public void requireValidReferralCodeIfPresent(String rawReferralCode) {
+        if (rawReferralCode == null || rawReferralCode.isBlank()) {
+            return;
+        }
+        if (findByReferralCode(rawReferralCode).isEmpty()) {
+            throw new InvalidReferralCodeException(
+                    "We couldn't find a vendor with referral code \"" + rawReferralCode.trim() + "\".");
+        }
+    }
+
+    /**
+     * Admin-only fix for a referral that was never attributed at signup time
+     * (e.g. the referred vendor forgot to use the link) - see
+     * AdminVendorController. Unlike #attribute, every failure here is a real
+     * error: an admin's mistake should surface, not silently no-op. Lets the
+     * admin set the resulting status directly (Pending / Converted / Already
+     * Paid) since the referred vendor may well have already paid before this
+     * gets fixed - see the CONVERTED/COMMISSION_PAID branch below.
+     */
+    @Transactional
+    public void createManualReferral(
+            Long referredUserId, String referrerCode, ReferralStatus status, BigDecimal commissionAmount) {
+        User referredUser = userRepository.findById(referredUserId)
+                .orElseThrow(() -> new IllegalStateException("Vendor not found: " + referredUserId));
+        if (vendorReferralRepository.existsByReferred_Id(referredUserId)) {
+            throw new IllegalStateException("This vendor is already attributed to a referrer.");
+        }
+        VendorProfile referrerProfile = findByReferralCode(referrerCode)
+                .orElseThrow(() -> new InvalidReferralCodeException(
+                        "We couldn't find a vendor with referral code \"" + referrerCode + "\"."));
+        if (referrerProfile.getUser().getId().equals(referredUserId)) {
+            throw new IllegalStateException("A vendor can't be tagged as referred by themselves.");
+        }
+
+        var referral = VendorReferral.builder()
+                .referrer(referrerProfile.getUser())
+                .referred(referredUser)
+                .status(status);
+        if (status == ReferralStatus.CONVERTED || status == ReferralStatus.COMMISSION_PAID) {
+            referral.commissionAmount(commissionAmount != null
+                    ? commissionAmount
+                    : systemSettingService.getBigDecimal(SystemSettingKey.REFERRAL_COMMISSION_AMOUNT));
+            referral.convertedAt(Instant.now());
+        }
+        if (status == ReferralStatus.COMMISSION_PAID) {
+            referral.paidAt(Instant.now());
+        }
+        vendorReferralRepository.save(referral.build());
+    }
+
+    private Optional<VendorProfile> findByReferralCode(String rawReferralCode) {
+        if (rawReferralCode == null || rawReferralCode.isBlank()) {
+            return Optional.empty();
+        }
+        return vendorProfileRepository.findByReferralCode(rawReferralCode.trim().toUpperCase(Locale.ROOT));
     }
 
     /**
@@ -132,11 +198,23 @@ public class VendorReferralService {
                 .build();
     }
 
+    /** Used by UserService#listVendorsForAdmin for the vendors table's referral-count column. */
+    @Transactional(readOnly = true)
+    public long countReferralsMade(Long vendorUserId) {
+        return vendorReferralRepository.countByReferrer_Id(vendorUserId);
+    }
+
     @Transactional(readOnly = true)
     public List<AdminReferralResponse> listAllForAdmin() {
         return vendorReferralRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(this::toAdminResponse)
                 .toList();
+    }
+
+    /** Whichever referral (if any) this vendor was the referred party on - for the admin vendor detail page. */
+    @Transactional(readOnly = true)
+    public Optional<AdminReferralResponse> findForReferredVendor(Long referredUserId) {
+        return vendorReferralRepository.findByReferred_Id(referredUserId).map(this::toAdminResponse);
     }
 
     @Transactional

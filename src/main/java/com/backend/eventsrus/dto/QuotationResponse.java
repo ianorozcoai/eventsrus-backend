@@ -22,7 +22,10 @@ public class QuotationResponse {
     private Long vendorUserId;
     private String vendorBusinessName;
     private String vendorSlug;
+    private String cancellationPolicyUrl;
+    private String refundTermsUrl;
     private Long plannerUserId;
+    private String plannerName;
     private LocalDate targetDate;
     private String requestMessage;
     private QuotationStatus status;

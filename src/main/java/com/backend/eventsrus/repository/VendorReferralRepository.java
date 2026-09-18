@@ -18,4 +18,6 @@ public interface VendorReferralRepository extends JpaRepository<VendorReferral, 
     List<VendorReferral> findByReferrer_IdOrderByCreatedAtDesc(Long referrerUserId);
 
     List<VendorReferral> findAllByOrderByCreatedAtDesc();
+
+    long countByReferrer_Id(Long referrerUserId);
 }

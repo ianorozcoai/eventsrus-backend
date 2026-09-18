@@ -51,6 +51,7 @@ public class BookingService {
     private final BookingStatusEventRepository bookingStatusEventRepository;
     private final VendorPlanService vendorPlanService;
     private final ReviewService reviewService;
+    private final QuotationService quotationService;
 
     @Transactional
     public BookingResponse propose(
@@ -266,6 +267,11 @@ public class BookingService {
                 "BOOKING", booking.getId());
 
         recordStatusChange(booking, oldStatus, BookingStatus.CANCELLED, requester, reason);
+
+        if (booking.getQuotation() != null) {
+            quotationService.markCancelledFromBooking(booking.getQuotation(), requester, reason);
+        }
+
         return toResponse(booking);
     }
 
@@ -348,7 +354,10 @@ public class BookingService {
     }
 
     private String displayName(User user) {
-        return user.getFirstName() != null ? user.getFirstName() : user.getEmail();
+        if (user.getFirstName() != null) {
+            return user.getLastName() != null ? user.getFirstName() + " " + user.getLastName() : user.getFirstName();
+        }
+        return user.getEmail();
     }
 
     private BookingResponse toResponse(Booking booking) {
@@ -361,7 +370,10 @@ public class BookingService {
                 .vendorUserId(booking.getVendorUser().getId())
                 .vendorBusinessName(vendorProfile != null ? vendorProfile.getBusinessName() : null)
                 .vendorSlug(vendorProfile != null ? vendorProfile.getSlug() : null)
+                .cancellationPolicyUrl(vendorProfile != null ? vendorProfile.getCancellationPolicyUrl() : null)
+                .refundTermsUrl(vendorProfile != null ? vendorProfile.getRefundTermsUrl() : null)
                 .plannerUserId(booking.getPlannerUser().getId())
+                .plannerName(displayName(booking.getPlannerUser()))
                 .quotationId(booking.getQuotation() != null ? booking.getQuotation().getId() : null)
                 .price(booking.getPrice())
                 .eventDatetime(booking.getEventDatetime())

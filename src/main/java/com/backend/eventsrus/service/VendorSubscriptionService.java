@@ -126,6 +126,8 @@ public class VendorSubscriptionService {
                 .expiresAt(effectivePlan.expiresAt())
                 .expiringSoon(effectivePlan.expiringSoon())
                 .expired(effectivePlan.expired())
+                .inGracePeriod(effectivePlan.inGracePeriod())
+                .graceEndsAt(effectivePlan.graceEndsAt())
                 .build();
     }
 

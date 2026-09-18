@@ -57,5 +57,15 @@ public enum QuotationStatus {
     BOOKED,
 
     /** Planner formally closed this out without booking - see QuotationService#declineQuotation. Only reachable pre-acceptance. */
-    DECLINED
+    DECLINED,
+
+    /**
+     * The Booking this quotation converted into (see BOOKED above) was
+     * later cancelled - see BookingService#cancel, which mirrors the
+     * cancellation back onto the Quotation so the two never show
+     * contradictory statuses (a vendor or planner seeing "CANCELLED" on the
+     * booking but "BOOKED" on its quotation was confusing). Distinct from
+     * DECLINED, which means it never got this far.
+     */
+    CANCELLED
 }

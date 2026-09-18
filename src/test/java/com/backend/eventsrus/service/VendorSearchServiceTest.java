@@ -58,11 +58,19 @@ class VendorSearchServiceTest {
     }
 
     private void activeSubscriptionFor(long userId) {
-        when(vendorPlanService.getEffectivePlan(userId)).thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false));
+        when(vendorPlanService.getEffectivePlan(userId))
+                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, false, null));
     }
 
     private void noSubscriptionFor(long userId) {
-        when(vendorPlanService.getEffectivePlan(userId)).thenReturn(new EffectivePlan(null, null, false, false));
+        when(vendorPlanService.getEffectivePlan(userId))
+                .thenReturn(new EffectivePlan(null, null, false, false, false, null));
+    }
+
+    /** A lapsed plan still inside its grace period - plan() stays non-null, same as an active plan. */
+    private void gracePeriodSubscriptionFor(long userId) {
+        when(vendorPlanService.getEffectivePlan(userId))
+                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, true, null));
     }
 
     @Test
@@ -79,6 +87,18 @@ class VendorSearchServiceTest {
                 .thenReturn(List.of(active, lapsed));
         activeSubscriptionFor(1L);
         noSubscriptionFor(2L);
+
+        var result = vendorSearchService.findMatchingVendors(BusinessType.CATERING, PROVINCE, null, null);
+
+        assertThat(result).extracting(vp -> vp.getUser().getId()).containsExactly(1L);
+    }
+
+    @Test
+    void stillRecommendsAVendorWhoseLapsedPlanIsStillWithinItsGracePeriod() {
+        VendorProfile inGrace = vendor(1L, false, false, null, List.of());
+        when(vendorProfileRepository.findByBusinessTypeAndOperatingArea(BusinessType.CATERING, PROVINCE))
+                .thenReturn(List.of(inGrace));
+        gracePeriodSubscriptionFor(1L);
 
         var result = vendorSearchService.findMatchingVendors(BusinessType.CATERING, PROVINCE, null, null);
 

@@ -15,4 +15,6 @@ public class SubscriptionStatusResponse {
     private Instant expiresAt;
     private boolean expiringSoon;
     private boolean expired;
+    private boolean inGracePeriod;
+    private Instant graceEndsAt;
 }

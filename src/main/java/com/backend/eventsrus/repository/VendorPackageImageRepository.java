@@ -8,6 +8,8 @@ public interface VendorPackageImageRepository extends JpaRepository<VendorPackag
 
     List<VendorPackageImage> findByVendorPackageIdOrderByCreatedAtAsc(Long vendorPackageId);
 
+    long countByVendorPackageId(Long vendorPackageId);
+
     /**
      * Every image for several packages at once, in one query - used when
      * building a package LIST (vendor's own Manage Packages, or the

@@ -220,6 +220,21 @@ public class QuotationService {
     }
 
     /**
+     * Mirrors a Booking cancellation back onto the Quotation it was created
+     * from - see BookingService#cancel, the only caller. Without this, a
+     * cancelled Booking leaves its Quotation stuck showing BOOKED forever,
+     * which reads as a contradiction between the two screens.
+     */
+    @Transactional
+    public void markCancelledFromBooking(Quotation quotation, User cancelledBy, String reason) {
+        QuotationStatus oldStatus = quotation.getStatus();
+        quotation.setStatus(QuotationStatus.CANCELLED);
+        quotationRepository.save(quotation);
+        recordStatusChange(quotation, oldStatus, QuotationStatus.CANCELLED, cancelledBy, reason, null,
+                quotation.getQuotedAmount(), quotation.getTargetDate(), quotation.getPackageIds());
+    }
+
+    /**
      * Sends a sent quotation back to the vendor with an updated ask
      * (message/date/packages) instead of the planner having to start a
      * whole new quotation thread - e.g. "actually, drop the photobooth
@@ -253,7 +268,12 @@ public class QuotationService {
         quotation.setRespondedAt(null);
         QuotationStatus oldStatus = quotation.getStatus();
         quotation.setStatus(QuotationStatus.REVISION_REQUESTED);
-        quotation.setVersion(quotation.getVersion() + 1);
+        // Version stays as-is here - this is a REQUEST for a new file, not a
+        // new file itself. respondWithPdf is the only place that increments
+        // it, so version always tracks "how many files the vendor has
+        // actually sent" (1, 2, 3, ...), not the number of back-and-forth
+        // steps. Incrementing here too used to double-count every revision
+        // cycle, so a vendor's second real quote showed up labeled v3.
         quotationRepository.save(quotation);
 
         notificationService.notify(quotation.getVendorUser(), NotificationType.NEW_QUOTATION_REQUEST,
@@ -609,7 +629,10 @@ public class QuotationService {
     }
 
     private String displayName(User user) {
-        return user.getFirstName() != null ? user.getFirstName() : user.getEmail();
+        if (user.getFirstName() != null) {
+            return user.getLastName() != null ? user.getFirstName() + " " + user.getLastName() : user.getFirstName();
+        }
+        return user.getEmail();
     }
 
     private QuotationResponse toResponse(Quotation quotation) {
@@ -627,7 +650,10 @@ public class QuotationService {
                 .vendorUserId(quotation.getVendorUser().getId())
                 .vendorBusinessName(vendorProfile != null ? vendorProfile.getBusinessName() : null)
                 .vendorSlug(vendorProfile != null ? vendorProfile.getSlug() : null)
+                .cancellationPolicyUrl(vendorProfile != null ? vendorProfile.getCancellationPolicyUrl() : null)
+                .refundTermsUrl(vendorProfile != null ? vendorProfile.getRefundTermsUrl() : null)
                 .plannerUserId(quotation.getPlannerUser().getId())
+                .plannerName(displayName(quotation.getPlannerUser()))
                 .targetDate(quotation.getTargetDate())
                 .requestMessage(quotation.getRequestMessage())
                 .status(quotation.getStatus())

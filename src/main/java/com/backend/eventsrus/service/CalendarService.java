@@ -38,15 +38,23 @@ public class CalendarService {
     // Accept Booking flow invisible on both the vendor and planner calendars.
     private static final Set<BookingStatus> CONFIRMED_STATUSES = Set.of(BookingStatus.APPROVED, BookingStatus.BOOKED);
 
+    // A cancelled/declined booking still needs its own calendar entry, not
+    // just to be skipped - skipping it silently leaves whatever stale
+    // INQUIRY/quotation-status entry was already in byEvent for that event
+    // (see the conversation/quotation loops below) showing instead, making a
+    // cancelled event look like it's still pending.
+    private static final Set<BookingStatus> TERMINAL_NEGATIVE_STATUSES =
+            Set.of(BookingStatus.CANCELLED, BookingStatus.DECLINED);
+
     // Every other status is still "in progress" from the vendor's
     // perspective - the calendar shows it (in violet, see the legend on
     // vendor/calendar.html) so a formal quotation request doesn't vanish
-    // from view just because it hasn't been booked yet. BOOKED is excluded
-    // here since that event already gets its own, more authoritative entry
-    // from the Booking loop below; DECLINED is excluded since there's
-    // nothing left to act on.
+    // from view just because it hasn't been booked yet. BOOKED and CANCELLED
+    // are excluded here since that event already gets its own, more
+    // authoritative entry from the Booking loop below; DECLINED is excluded
+    // since there's nothing left to act on.
     private static final Set<QuotationStatus> TERMINAL_QUOTATION_STATUSES =
-            Set.of(QuotationStatus.BOOKED, QuotationStatus.DECLINED);
+            Set.of(QuotationStatus.BOOKED, QuotationStatus.DECLINED, QuotationStatus.CANCELLED);
 
     private static final ZoneId MANILA = ZoneId.of("Asia/Manila");
 
@@ -140,6 +148,14 @@ public class CalendarService {
                         .status("BOOKED")
                         .plannerName(displayName(booking.getPlannerUser()))
                         .build());
+            } else if (TERMINAL_NEGATIVE_STATUSES.contains(booking.getStatus())) {
+                byEvent.put(booking.getEvent().getId(), CalendarEntryResponse.builder()
+                        .eventId(booking.getEvent().getId())
+                        .eventName(booking.getEvent().getName())
+                        .eventDatetime(booking.getEventDatetime())
+                        .status("CANCELLED")
+                        .plannerName(displayName(booking.getPlannerUser()))
+                        .build());
             }
         }
 
@@ -152,6 +168,9 @@ public class CalendarService {
     }
 
     private String displayName(User user) {
-        return user.getFirstName() != null ? user.getFirstName() : user.getEmail();
+        if (user.getFirstName() != null) {
+            return user.getLastName() != null ? user.getFirstName() + " " + user.getLastName() : user.getFirstName();
+        }
+        return user.getEmail();
     }
 }

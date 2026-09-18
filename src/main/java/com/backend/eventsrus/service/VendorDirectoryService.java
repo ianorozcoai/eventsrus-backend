@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class VendorDirectoryService {
     private final VendorPaymentMethodService vendorPaymentMethodService;
     private final VendorLegalDocumentService vendorLegalDocumentService;
     private final VendorPackageImageService vendorPackageImageService;
+    private final VendorGalleryPhotoService vendorGalleryPhotoService;
     private final ReviewService reviewService;
 
     @Transactional(readOnly = true)
@@ -60,9 +62,13 @@ public class VendorDirectoryService {
 
         // Newest first, same ordering listAllForStorefront used to give -
         // an inactive/hidden package's photos deliberately don't show up
-        // here either, matching packages[] above.
-        var galleryImages = imagesByPackageId.values().stream()
-                .flatMap(List::stream)
+        // here either, matching packages[] above. Standalone gallery photos
+        // (not tied to any package - see VendorGalleryPhotoService) are
+        // folded into this exact same list, so the storefront's Gallery
+        // section is genuinely one combined gallery, not two separate ones.
+        var galleryImages = Stream.concat(
+                        imagesByPackageId.values().stream().flatMap(List::stream),
+                        vendorGalleryPhotoService.listForVendorProfile(profile.getId()).stream())
                 .sorted(Comparator.comparing(VendorPackageImageResponse::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
 

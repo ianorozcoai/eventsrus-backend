@@ -191,7 +191,10 @@ public class BookingAmendmentService {
     }
 
     private String displayName(User user) {
-        return user.getFirstName() != null ? user.getFirstName() : user.getEmail();
+        if (user.getFirstName() != null) {
+            return user.getLastName() != null ? user.getFirstName() + " " + user.getLastName() : user.getFirstName();
+        }
+        return user.getEmail();
     }
 
     private BookingAmendmentResponse toResponse(BookingAmendment amendment) {

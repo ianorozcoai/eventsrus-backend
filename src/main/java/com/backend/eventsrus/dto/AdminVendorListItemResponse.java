@@ -36,4 +36,5 @@ public class AdminVendorListItemResponse {
     private String verifiedByAdmin;
     private boolean topVendor;
     private Instant createdAt;
+    private long referralCount;
 }
