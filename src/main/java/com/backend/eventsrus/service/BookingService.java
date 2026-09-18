@@ -2,6 +2,7 @@ package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.dto.BookingResponse;
 import com.backend.eventsrus.dto.BookingStatusEventResponse;
+import com.backend.eventsrus.enums.AmendmentStatus;
 import com.backend.eventsrus.enums.BookingStatus;
 import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.QuotationStatus;
@@ -12,6 +13,7 @@ import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.Quotation;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorProfile;
+import com.backend.eventsrus.repository.BookingAmendmentRepository;
 import com.backend.eventsrus.repository.BookingRepository;
 import com.backend.eventsrus.repository.BookingStatusEventRepository;
 import com.backend.eventsrus.repository.EventRepository;
@@ -52,6 +54,7 @@ public class BookingService {
     private final VendorPlanService vendorPlanService;
     private final ReviewService reviewService;
     private final QuotationService quotationService;
+    private final BookingAmendmentRepository bookingAmendmentRepository;
 
     @Transactional
     public BookingResponse propose(
@@ -390,6 +393,8 @@ public class BookingService {
                 .cancelledAt(booking.getCancelledAt())
                 .cancellationReason(booking.getCancellationReason())
                 .cancelledByUserId(booking.getCancelledBy() != null ? booking.getCancelledBy().getId() : null)
+                .hasPendingAmendment(
+                        bookingAmendmentRepository.existsByBookingIdAndStatus(booking.getId(), AmendmentStatus.PENDING))
                 .reviewId(existingReview != null ? existingReview.getId() : null)
                 .reviewRating(existingReview != null ? existingReview.getRating() : null)
                 .reviewComment(existingReview != null ? existingReview.getComment() : null)

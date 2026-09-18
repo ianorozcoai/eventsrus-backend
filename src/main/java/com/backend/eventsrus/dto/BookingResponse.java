@@ -39,6 +39,10 @@ public class BookingResponse {
     private String cancellationReason;
     private Long cancelledByUserId;
 
+    // True while a BookingAmendment on this booking is still awaiting a
+    // response from either side - see BookingAmendmentService/AmendmentStatus.
+    private boolean hasPendingAmendment;
+
     // Review eligibility for the planner viewing their own bookings - see
     // ReviewService. canReview is true only for a successful booking whose
     // event is 3+ days past and hasn't been reviewed yet; reviewId is set
