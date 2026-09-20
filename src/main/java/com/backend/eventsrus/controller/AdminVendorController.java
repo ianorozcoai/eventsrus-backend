@@ -3,14 +3,20 @@ package com.backend.eventsrus.controller;
 import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
 import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
+import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
 import com.backend.eventsrus.enums.ReferralStatus;
+import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.repository.UserRepository;
+import com.backend.eventsrus.service.AuthService;
 import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
 import com.backend.eventsrus.service.VendorReferralService;
 import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,11 +34,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/vendors")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminVendorController {
 
     private final UserService userService;
     private final ReviewService reviewService;
     private final VendorReferralService vendorReferralService;
+    private final UserRepository userRepository;
+    private final AuthService authService;
 
     /** The review queue - every vendor, regardless of verification state. */
     @GetMapping
@@ -58,6 +67,7 @@ public class AdminVendorController {
                         .topVendor(v.topVendor())
                         .createdAt(v.createdAt())
                         .referralCount(v.referralCount())
+                        .fakeAccount(v.fakeAccount())
                         .build())
                 .toList();
     }
@@ -140,5 +150,24 @@ public class AdminVendorController {
             @PathVariable Long userId, @RequestParam String referrerCode, @RequestParam ReferralStatus status,
             @RequestParam(required = false) BigDecimal commissionAmount) {
         vendorReferralService.createManualReferral(userId, referrerCode, status, commissionAmount);
+    }
+
+    /**
+     * "View Dashboard" from the admin Vendors page - lets an admin open a
+     * vendor's real dashboard for support/setup purposes without that
+     * vendor's own Google login. Reuses the exact same token-issuing path a
+     * real login goes through (AuthService#issueTokenFor) rather than
+     * inventing a second one - the resulting token is a completely normal
+     * vendor-role JWT, indistinguishable from one issued at real login.
+     * adminUsername is the same plain audit-trail label #verify already
+     * uses, not a foreign key.
+     */
+    @PostMapping("/{userId}/impersonate")
+    public AuthResponse impersonate(@PathVariable Long userId, @RequestParam(required = false) String adminUsername) {
+        User vendor = userRepository.findById(userId)
+                .filter(u -> u.getRole() == Role.VENDOR)
+                .orElseThrow(() -> new IllegalStateException("Vendor not found: " + userId));
+        log.info("Admin '{}' opened vendor dashboard for userId={} ({})", adminUsername, userId, vendor.getEmail());
+        return authService.issueTokenFor(vendor);
     }
 }

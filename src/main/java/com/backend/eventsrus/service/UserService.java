@@ -304,7 +304,8 @@ public class UserService {
                         profile.getVerifiedByAdmin(),
                         profile.isTopVendor(),
                         profile.getCreatedAt(),
-                        vendorReferralService.countReferralsMade(profile.getUser().getId())))
+                        vendorReferralService.countReferralsMade(profile.getUser().getId()),
+                        profile.getUser().isFakeAccount()))
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
     }
@@ -679,7 +680,8 @@ public class UserService {
             String verifiedByAdmin,
             boolean topVendor,
             Instant createdAt,
-            long referralCount) {
+            long referralCount,
+            boolean fakeAccount) {
     }
 
     public record AdminIncompleteVendorSignup(

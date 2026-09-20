@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -82,4 +83,12 @@ public class User extends BaseEntity {
 
     @Column(name = "bookings_badge_seen_at")
     private Instant bookingsBadgeSeenAt;
+
+    // True only for accounts the team created directly (e.g. demo vendors
+    // seeded to populate the marketplace before real vendors sign up) -
+    // never set by any real signup path. Lets these be found and removed in
+    // bulk later without guessing from email/name patterns.
+    @Column(name = "fake_account", nullable = false)
+    @Builder.Default
+    private boolean fakeAccount = false;
 }

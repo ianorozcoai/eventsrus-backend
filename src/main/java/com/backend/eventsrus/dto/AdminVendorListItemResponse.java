@@ -37,4 +37,5 @@ public class AdminVendorListItemResponse {
     private boolean topVendor;
     private Instant createdAt;
     private long referralCount;
+    private boolean fakeAccount;
 }
