@@ -20,6 +20,7 @@ public class VendorSettingsResponse {
     private String slug;
 
     private String businessName;
+    private String description;
     private String ownerName;
     private BusinessType businessType;
     private String contactEmail;

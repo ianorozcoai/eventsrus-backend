@@ -53,6 +53,8 @@ class UserServiceTest {
     private EventRepository eventRepository;
     @Mock
     private SystemSettingService systemSettingService;
+    @Mock
+    private AdminNotificationEmailService adminNotificationEmailService;
 
     private UserService userService;
 
@@ -71,7 +73,8 @@ class UserServiceTest {
                 recaptchaVerificationService,
                 vendorReferralService,
                 eventRepository,
-                systemSettingService);
+                systemSettingService,
+                adminNotificationEmailService);
     }
 
     @Nested
@@ -86,6 +89,7 @@ class UserServiceTest {
 
             assertThat(created.getRole()).isEqualTo(Role.PLANNER);
             assertThat(created.getSignupIntent()).isEqualTo(SignupIntent.PLANNER);
+            verify(adminNotificationEmailService).notifyNewPlanner(created);
         }
 
         @Test
@@ -99,6 +103,9 @@ class UserServiceTest {
             // but the identity lock is already VENDOR from this first login.
             assertThat(created.getRole()).isEqualTo(Role.PLANNER);
             assertThat(created.getSignupIntent()).isEqualTo(SignupIntent.VENDOR);
+            // No planner alert for a vendor-intent signup - it gets its own
+            // alert later, once onboarding actually finishes (becomeVendor).
+            verify(adminNotificationEmailService, never()).notifyNewPlanner(any());
         }
 
         @Test
@@ -119,6 +126,8 @@ class UserServiceTest {
 
             assertThat(userService.findOrCreateFromGoogle(GOOGLE_USER, "planner")).isSameAs(existing);
             verify(userRepository, never()).save(any());
+            // A returning login is not a new signup - never re-alert.
+            verify(adminNotificationEmailService, never()).notifyNewPlanner(any());
         }
 
         @Test

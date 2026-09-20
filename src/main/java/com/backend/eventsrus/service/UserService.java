@@ -59,6 +59,7 @@ public class UserService {
     private final VendorReferralService vendorReferralService;
     private final EventRepository eventRepository;
     private final SystemSettingService systemSettingService;
+    private final AdminNotificationEmailService adminNotificationEmailService;
 
     /**
      * intent is "planner" or "vendor" - which login door was used (see
@@ -108,11 +109,21 @@ public class UserService {
                 .signupIntent(declaredIntent != null ? declaredIntent : SignupIntent.PLANNER)
                 .build();
 
+        User saved;
         try {
-            return userRepository.save(user);
+            saved = userRepository.save(user);
         } catch (DataIntegrityViolationException ex) {
             throw new DuplicateUserException("Account already exists for this Google user");
         }
+
+        // Vendor-intent signups get their own alert once onboarding actually
+        // finishes (see becomeVendor below) - a "vendor" door click alone is
+        // just an incomplete sign-up, already tracked separately on the
+        // admin vendors page.
+        if (saved.getSignupIntent() == SignupIntent.PLANNER) {
+            adminNotificationEmailService.notifyNewPlanner(saved);
+        }
+        return saved;
     }
 
     @Transactional
@@ -133,6 +144,10 @@ public class UserService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + email));
+        // becomeVendor is safe to call again on an already-onboarded vendor
+        // (e.g. re-submitting/updating profile fields) - only a genuine
+        // first-time PLANNER->VENDOR transition should alert the admin.
+        boolean wasAlreadyVendor = user.getRole() == Role.VENDOR;
 
         // Fail fast on a typo'd/unknown referral code before doing any
         // uploads below - a blank code is fine (referral is optional).
@@ -228,6 +243,14 @@ public class UserService {
                             .status(SubscriptionStatus.ACTIVE)
                             .build());
             vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd);
+        }
+
+        // Fired last, after every other step has succeeded - this method is
+        // @Transactional, and an exception anywhere above rolls the whole
+        // thing back, so a "new vendor" email should only ever go out once
+        // onboarding has actually gone through.
+        if (!wasAlreadyVendor) {
+            adminNotificationEmailService.notifyNewVendor(user);
         }
 
         return user;
@@ -446,6 +469,7 @@ public class UserService {
         VendorProfile profile = requireProfile(vendorEmail);
 
         profile.setBusinessName(request.getBusinessName());
+        profile.setDescription(request.getDescription());
         profile.setOwnerName(request.getOwnerName());
         profile.setBusinessType(request.getBusinessType());
         profile.setContactEmail(request.getContactEmail());
@@ -532,6 +556,7 @@ public class UserService {
         return VendorSettingsResponse.builder()
                 .slug(profile.getSlug())
                 .businessName(profile.getBusinessName())
+                .description(profile.getDescription())
                 .ownerName(profile.getOwnerName())
                 .businessType(profile.getBusinessType())
                 .contactEmail(profile.getContactEmail())

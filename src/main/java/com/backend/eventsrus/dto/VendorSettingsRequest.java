@@ -15,6 +15,7 @@ public class VendorSettingsRequest {
 
     // Tab 1 — Business Info & Credentials
     private String businessName;
+    private String description;
     private String ownerName;
     private BusinessType businessType;
     private String contactEmail;
