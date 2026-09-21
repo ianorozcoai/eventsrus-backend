@@ -132,6 +132,36 @@ public class PayPalSubscriptionClient {
         }
     }
 
+    /**
+     * Updates the fixed price of an existing, already-created Plan - does
+     * NOT create a new plan. Safe to call any time none of the plan's
+     * current subscribers need to re-approve a price change (PayPal only
+     * requires that for subscribers already on an older pricing_scheme);
+     * for a plan with zero or only newly-created subscribers this just
+     * takes effect immediately. See SystemSettingKey#VENDOR_PRO_MONTHLY_PRICE.
+     */
+    public void updatePlanPricing(String planId, String fixedPriceValue) {
+        Map<String, Object> body = Map.of(
+                "pricing_schemes", List.of(
+                        Map.of(
+                                "billing_cycle_sequence", 1,
+                                "pricing_scheme", Map.of(
+                                        "fixed_price", Map.of(
+                                                "value", fixedPriceValue,
+                                                "currency_code", "PHP")))));
+
+        try {
+            restClient.post()
+                    .uri(payPalProperties.getBaseUrl() + "/v1/billing/plans/{planId}/update-pricing-schemes", planId)
+                    .headers(h -> h.addAll(payPalTokenService.authorizedJsonHeaders()))
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            throw new PayPalApiException("Failed to update PayPal plan pricing for " + planId, e);
+        }
+    }
+
     public record CreatedSubscription(String paypalSubscriptionId, String approveUrl) {
     }
 

@@ -46,7 +46,22 @@ public enum SystemSettingKey {
             "vendor-package-photo-limit",
             "Vendor package photo limit",
             "Maximum number of photos a vendor can attach to a single package.",
-            "10");
+            "10"),
+    VENDOR_PRO_MONTHLY_PRICE(
+            "vendor-pro-monthly-price",
+            "Vendor PRO monthly price (PHP)",
+            "Base monthly price for the vendor PRO subscription. Semi-Annual (5x this, billed every 6 months) and Annual (10x this, billed every 12 months) are derived automatically. Changing this immediately updates the live PayPal billing plans, so both the vendor subscription page and what's actually charged change together.",
+            "999"),
+    PLANNER_DIGITAL_BIRTHDAY_PRICE(
+            "planner-digital-birthday-price",
+            "Digital Birthday Invitation price (PHP)",
+            "One-time price for a planner's digital birthday invitation site. Reserved for the upcoming digital invitations upsell feature - not yet wired to any checkout flow.",
+            "699"),
+    PLANNER_DIGITAL_WEDDING_PRICE(
+            "planner-digital-wedding-price",
+            "Digital Debut/Wedding Invitation price (PHP)",
+            "One-time price for a planner's digital debut or wedding invitation site. Reserved for the upcoming digital invitations upsell feature - not yet wired to any checkout flow.",
+            "1299");
 
     private final String key;
     private final String label;

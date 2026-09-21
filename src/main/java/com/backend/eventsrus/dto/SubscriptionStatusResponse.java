@@ -17,4 +17,8 @@ public class SubscriptionStatusResponse {
     private boolean expired;
     private boolean inGracePeriod;
     private Instant graceEndsAt;
+    private int monthlyPrice;
+    private int quarterlyPrice;
+    private int semiAnnualPrice;
+    private int annualPrice;
 }

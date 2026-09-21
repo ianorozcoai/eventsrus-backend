@@ -21,6 +21,8 @@ public class PayPalProperties {
     @Setter
     public static class PlanId {
         private String proMonthly;
+        private String proQuarterly;
+        private String proSemiAnnual;
         private String proAnnual;
         private String premiumMonthly;
         private String premiumAnnual;

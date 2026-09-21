@@ -8,6 +8,7 @@ import com.backend.eventsrus.enums.BillingCycle;
 import com.backend.eventsrus.enums.BillingSource;
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.SubscriptionStatus;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.SubscriptionConflictException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorSubscription;
@@ -26,6 +27,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class VendorSubscriptionService {
 
+    // Quarterly has no discount (3 months at the flat rate); "1 month free"
+    // on Semi-Annual, "2 months free" on Annual - see
+    // SystemSettingKey#VENDOR_PRO_MONTHLY_PRICE.
+    private static final int QUARTERLY_MONTHS_CHARGED = 3;
+    private static final int SEMI_ANNUAL_MONTHS_CHARGED = 5;
+    private static final int ANNUAL_MONTHS_CHARGED = 10;
+
     private static final EnumSet<SubscriptionStatus> NON_TERMINAL_STATUSES = EnumSet.of(
             SubscriptionStatus.APPROVAL_PENDING,
             SubscriptionStatus.APPROVED,
@@ -38,6 +46,7 @@ public class VendorSubscriptionService {
     private final VendorPlanService vendorPlanService;
     private final PayPalProperties payPalProperties;
     private final PayPalSubscriptionClient payPalSubscriptionClient;
+    private final SystemSettingService systemSettingService;
 
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
@@ -121,6 +130,7 @@ public class VendorSubscriptionService {
 
     private SubscriptionStatusResponse statusResponseFor(Long userId) {
         VendorPlanService.EffectivePlan effectivePlan = vendorPlanService.getEffectivePlan(userId);
+        int monthlyPrice = systemSettingService.getInt(SystemSettingKey.VENDOR_PRO_MONTHLY_PRICE);
         return SubscriptionStatusResponse.builder()
                 .plan(effectivePlan.plan())
                 .expiresAt(effectivePlan.expiresAt())
@@ -128,7 +138,30 @@ public class VendorSubscriptionService {
                 .expired(effectivePlan.expired())
                 .inGracePeriod(effectivePlan.inGracePeriod())
                 .graceEndsAt(effectivePlan.graceEndsAt())
+                .monthlyPrice(monthlyPrice)
+                .quarterlyPrice(monthlyPrice * QUARTERLY_MONTHS_CHARGED)
+                .semiAnnualPrice(monthlyPrice * SEMI_ANNUAL_MONTHS_CHARGED)
+                .annualPrice(monthlyPrice * ANNUAL_MONTHS_CHARGED)
                 .build();
+    }
+
+    /**
+     * Pushes the admin-configured monthly price (and its derived Semi-Annual
+     * /Annual totals) onto the 3 already-created PayPal Plans so what's
+     * actually charged matches what SystemSettingKey#VENDOR_PRO_MONTHLY_PRICE
+     * says - called from AdminSystemSettingController right before that
+     * setting is saved, so the two never drift apart. Updates whichever
+     * PayPal environment this running instance is configured for (sandbox
+     * locally, live in production) - see PayPalProperties#getBaseUrl.
+     */
+    public void syncProPricingToPayPal(int monthlyPrice) {
+        PayPalProperties.PlanId planIds = payPalProperties.getPlanId();
+        payPalSubscriptionClient.updatePlanPricing(planIds.getProMonthly(), monthlyPrice + ".00");
+        payPalSubscriptionClient.updatePlanPricing(
+                planIds.getProQuarterly(), (monthlyPrice * QUARTERLY_MONTHS_CHARGED) + ".00");
+        payPalSubscriptionClient.updatePlanPricing(
+                planIds.getProSemiAnnual(), (monthlyPrice * SEMI_ANNUAL_MONTHS_CHARGED) + ".00");
+        payPalSubscriptionClient.updatePlanPricing(planIds.getProAnnual(), (monthlyPrice * ANNUAL_MONTHS_CHARGED) + ".00");
     }
 
     private void applyPaypalStatus(
@@ -152,7 +185,12 @@ public class VendorSubscriptionService {
     private String resolvePaypalPlanId(PlanTier plan, BillingCycle cycle) {
         PayPalProperties.PlanId planIds = payPalProperties.getPlanId();
         return switch (plan) {
-            case PRO -> cycle == BillingCycle.MONTHLY ? planIds.getProMonthly() : planIds.getProAnnual();
+            case PRO -> switch (cycle) {
+                case MONTHLY -> planIds.getProMonthly();
+                case QUARTERLY -> planIds.getProQuarterly();
+                case SEMI_ANNUAL -> planIds.getProSemiAnnual();
+                case ANNUAL -> planIds.getProAnnual();
+            };
         };
     }
 }
