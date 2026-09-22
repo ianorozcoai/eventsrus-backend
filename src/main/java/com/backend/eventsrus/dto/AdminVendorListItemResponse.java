@@ -38,4 +38,6 @@ public class AdminVendorListItemResponse {
     private Instant createdAt;
     private long referralCount;
     private boolean fakeAccount;
+    private long bookingCount;
+    private Instant lastLoginAt;
 }

@@ -20,6 +20,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     long countByVendorUserIdAndStatus(Long vendorUserId, BookingStatus status);
 
+    // Admin Vendors directory's "Bookings" column - every booking except
+    // cancelled ones (see AdminVendorController#list).
+    long countByVendorUserIdAndStatusNot(Long vendorUserId, BookingStatus status);
+
     boolean existsByQuotationId(Long quotationId);
 
     // Powers the vendor nav / planner event-tab "unseen" badges (see

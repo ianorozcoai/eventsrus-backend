@@ -11,6 +11,7 @@ import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SignupIntent;
 import com.backend.eventsrus.exception.AccountIdentityConflictException;
 import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.repository.BookingRepository;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
@@ -50,6 +51,8 @@ class UserServiceTest {
     @Mock
     private VendorReferralService vendorReferralService;
     @Mock
+    private BookingRepository bookingRepository;
+    @Mock
     private EventRepository eventRepository;
     @Mock
     private SystemSettingService systemSettingService;
@@ -72,6 +75,7 @@ class UserServiceTest {
                 vendorBillingHistoryService,
                 recaptchaVerificationService,
                 vendorReferralService,
+                bookingRepository,
                 eventRepository,
                 systemSettingService,
                 adminNotificationEmailService);
@@ -123,9 +127,9 @@ class UserServiceTest {
             User existing = User.builder().googleId("google-123").role(Role.PLANNER)
                     .signupIntent(SignupIntent.PLANNER).build();
             when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+            when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
             assertThat(userService.findOrCreateFromGoogle(GOOGLE_USER, "planner")).isSameAs(existing);
-            verify(userRepository, never()).save(any());
             // A returning login is not a new signup - never re-alert.
             verify(adminNotificationEmailService, never()).notifyNewPlanner(any());
         }
@@ -139,9 +143,9 @@ class UserServiceTest {
             User existing = User.builder().googleId("google-123").role(Role.PLANNER)
                     .signupIntent(SignupIntent.VENDOR).build();
             when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+            when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
             assertThat(userService.findOrCreateFromGoogle(GOOGLE_USER, "vendor")).isSameAs(existing);
-            verify(userRepository, never()).save(any());
         }
 
         @Test
@@ -149,8 +153,22 @@ class UserServiceTest {
             User existing = User.builder().googleId("google-123").role(Role.VENDOR)
                     .signupIntent(SignupIntent.VENDOR).build();
             when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+            when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
             assertThat(userService.findOrCreateFromGoogle(GOOGLE_USER, "vendor")).isSameAs(existing);
+        }
+
+        @Test
+        void updatesLastLoginAtOnEveryLogin() {
+            User existing = User.builder().googleId("google-123").role(Role.VENDOR)
+                    .signupIntent(SignupIntent.VENDOR).build();
+            when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+            when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+
+            userService.findOrCreateFromGoogle(GOOGLE_USER, "vendor");
+
+            assertThat(existing.getLastLoginAt()).isNotNull();
+            verify(userRepository).save(existing);
         }
 
         @Test
@@ -181,6 +199,7 @@ class UserServiceTest {
             User existing = User.builder().googleId("google-123").role(Role.VENDOR)
                     .signupIntent(SignupIntent.VENDOR).build();
             when(userRepository.findByGoogleId("google-123")).thenReturn(Optional.of(existing));
+            when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
             assertThat(userService.findOrCreateFromGoogle(GOOGLE_USER, null)).isSameAs(existing);
         }

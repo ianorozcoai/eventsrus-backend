@@ -68,6 +68,8 @@ public class AdminVendorController {
                         .createdAt(v.createdAt())
                         .referralCount(v.referralCount())
                         .fakeAccount(v.fakeAccount())
+                        .bookingCount(v.bookingCount())
+                        .lastLoginAt(v.lastLoginAt())
                         .build())
                 .toList();
     }

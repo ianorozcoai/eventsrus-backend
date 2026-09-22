@@ -8,6 +8,7 @@ import com.backend.eventsrus.dto.VendorSettingsRequest;
 import com.backend.eventsrus.dto.VendorSettingsResponse;
 import com.backend.eventsrus.common.TermsConstants;
 import com.backend.eventsrus.enums.BillingSource;
+import com.backend.eventsrus.enums.BookingStatus;
 import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.LegalDocumentType;
 import com.backend.eventsrus.enums.PlanTier;
@@ -22,6 +23,7 @@ import com.backend.eventsrus.exception.RecaptchaVerificationException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.model.VendorSubscription;
+import com.backend.eventsrus.repository.BookingRepository;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
@@ -57,6 +59,7 @@ public class UserService {
     private final VendorBillingHistoryService vendorBillingHistoryService;
     private final RecaptchaVerificationService recaptchaVerificationService;
     private final VendorReferralService vendorReferralService;
+    private final BookingRepository bookingRepository;
     private final EventRepository eventRepository;
     private final SystemSettingService systemSettingService;
     private final AdminNotificationEmailService adminNotificationEmailService;
@@ -74,9 +77,11 @@ public class UserService {
      */
     public User findOrCreateFromGoogle(GoogleUserInfo googleUser, String intent) {
         SignupIntent declaredIntent = parseIntent(intent);
-        return userRepository.findByGoogleId(googleUser.googleId())
+        User user = userRepository.findByGoogleId(googleUser.googleId())
                 .map(existing -> requireNoIdentityConflict(existing, declaredIntent))
                 .orElseGet(() -> createFromGoogle(googleUser, declaredIntent));
+        user.setLastLoginAt(Instant.now());
+        return userRepository.save(user);
     }
 
     private SignupIntent parseIntent(String intent) {
@@ -306,7 +311,9 @@ public class UserService {
                         profile.isTopVendor(),
                         profile.getCreatedAt(),
                         vendorReferralService.countReferralsMade(profile.getUser().getId()),
-                        profile.getUser().isFakeAccount()))
+                        profile.getUser().isFakeAccount(),
+                        bookingRepository.countByVendorUserIdAndStatusNot(profile.getUser().getId(), BookingStatus.CANCELLED),
+                        profile.getUser().getLastLoginAt()))
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
     }
@@ -684,7 +691,9 @@ public class UserService {
             boolean topVendor,
             Instant createdAt,
             long referralCount,
-            boolean fakeAccount) {
+            boolean fakeAccount,
+            long bookingCount,
+            Instant lastLoginAt) {
     }
 
     public record AdminIncompleteVendorSignup(

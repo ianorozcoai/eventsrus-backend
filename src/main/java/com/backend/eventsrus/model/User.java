@@ -84,6 +84,12 @@ public class User extends BaseEntity {
     @Column(name = "bookings_badge_seen_at")
     private Instant bookingsBadgeSeenAt;
 
+    // Set on every successful Google sign-in (see
+    // UserService#findOrCreateFromGoogle) - null means never logged in since
+    // this column was added (e.g. a seeded/fake account).
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
     // True only for accounts the team created directly (e.g. demo vendors
     // seeded to populate the marketplace before real vendors sign up) -
     // never set by any real signup path. Lets these be found and removed in
