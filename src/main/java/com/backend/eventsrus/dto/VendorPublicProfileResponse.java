@@ -22,6 +22,7 @@ public class VendorPublicProfileResponse {
     private String country;
     private String contactEmail;
     private String phoneNumber;
+    private String facebookPageUrl;
     private List<VendorPackageResponse> packages;
     private String paymentInstructions;
     private List<VendorPaymentMethodResponse> paymentMethods;

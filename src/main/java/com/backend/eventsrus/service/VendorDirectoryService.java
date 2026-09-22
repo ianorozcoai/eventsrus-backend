@@ -84,6 +84,7 @@ public class VendorDirectoryService {
                 .country(profile.getCountry())
                 .contactEmail(profile.getContactEmail())
                 .phoneNumber(profile.getPhoneNumber())
+                .facebookPageUrl(profile.getFacebookPageUrl())
                 .packages(packages)
                 .paymentInstructions(profile.getPaymentInstructions())
                 .paymentMethods(vendorPaymentMethodService.listApprovedForStorefront(profile.getId()))

@@ -7,6 +7,7 @@ import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.validator.constraints.URL;
 
 @Getter
 @Setter
@@ -20,6 +21,8 @@ public class VendorSettingsRequest {
     private BusinessType businessType;
     private String contactEmail;
     private String phoneNumber;
+    @URL(message = "Enter a valid Facebook page URL")
+    private String facebookPageUrl;
     private String addressLine1;
     private String addressLine2;
     private String city;

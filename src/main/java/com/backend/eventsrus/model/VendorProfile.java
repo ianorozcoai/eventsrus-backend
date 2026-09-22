@@ -61,6 +61,9 @@ public class VendorProfile extends BaseEntity {
     @Column(name = "phone_number")
     private String phoneNumber;
 
+    @Column(name = "facebook_page_url")
+    private String facebookPageUrl;
+
     @Column(name = "address_line1")
     private String addressLine1;
 

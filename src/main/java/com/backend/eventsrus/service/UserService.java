@@ -175,6 +175,7 @@ public class UserService {
         profile.setDescription(request.getDescription());
         profile.setContactEmail(request.getContactEmail());
         profile.setPhoneNumber(request.getPhoneNumber());
+        profile.setFacebookPageUrl(request.getFacebookPageUrl());
         profile.setAddressLine1(request.getAddressLine1());
         profile.setAddressLine2(request.getAddressLine2());
         profile.setCity(request.getCity());
@@ -475,6 +476,7 @@ public class UserService {
         profile.setBusinessType(request.getBusinessType());
         profile.setContactEmail(request.getContactEmail());
         profile.setPhoneNumber(request.getPhoneNumber());
+        profile.setFacebookPageUrl(request.getFacebookPageUrl());
         profile.setAddressLine1(request.getAddressLine1());
         profile.setAddressLine2(request.getAddressLine2());
         profile.setCity(request.getCity());
@@ -562,6 +564,7 @@ public class UserService {
                 .businessType(profile.getBusinessType())
                 .contactEmail(profile.getContactEmail())
                 .phoneNumber(profile.getPhoneNumber())
+                .facebookPageUrl(profile.getFacebookPageUrl())
                 .addressLine1(profile.getAddressLine1())
                 .addressLine2(profile.getAddressLine2())
                 .city(profile.getCity())

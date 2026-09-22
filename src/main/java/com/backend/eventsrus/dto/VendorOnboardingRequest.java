@@ -5,11 +5,12 @@ import com.backend.eventsrus.enums.EventType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.validator.constraints.URL;
 
 @Getter
 @Setter
@@ -19,15 +20,19 @@ public class VendorOnboardingRequest {
     @NotBlank
     private String businessName;
 
+    @NotNull(message = "Select a business type")
     private BusinessType businessType;
 
+    @NotBlank(message = "Owner name is required")
     private String ownerName;
 
     private String description;
 
+    @NotBlank(message = "Email is required")
     @Email
     private String contactEmail;
 
+    @NotBlank(message = "Mobile number is required")
     private String phoneNumber;
 
     private String addressLine1;
@@ -44,12 +49,13 @@ public class VendorOnboardingRequest {
 
     private List<String> operatingAreas;
 
-    // Which event types this vendor caters to - mandatory at onboarding so
-    // planners can be matched to the right vendors for the occasion (mirrors
-    // VendorProfile.cateredEventTypes, also editable later in Account
-    // Settings via VendorSettingsRequest).
-    @NotEmpty(message = "Select at least one event type you cater to")
+    // No longer required as of the simplified onboarding form - this field
+    // is now hidden there and only ever set later via Account Settings
+    // (VendorSettingsRequest). Still mirrors VendorProfile.cateredEventTypes.
     private List<EventType> cateredEventTypes;
+
+    @URL(message = "Enter a valid Facebook page URL")
+    private String facebookPageUrl;
 
     @AssertTrue(message = "You must accept the vendor terms of service")
     private boolean acceptedTerms;
