@@ -28,7 +28,7 @@ public class AdminDashboardController {
     public AdminDashboardResponse get() {
         return AdminDashboardResponse.builder()
                 .plannerCount(userRepository.countByRoleAndSignupIntentNot(Role.PLANNER, SignupIntent.VENDOR))
-                .vendorCount(userRepository.countByRole(Role.VENDOR))
+                .vendorCount(userRepository.countByRoleAndFakeAccountFalse(Role.VENDOR))
                 .vendorTicketCount(supportTicketRepository.countByRaisedBy_Role(Role.VENDOR))
                 .newVendorTicketCount(supportTicketRepository.countByRaisedBy_RoleAndStatus(Role.VENDOR, TicketStatus.OPEN))
                 .newPlannerTicketCount(supportTicketRepository.countByRaisedBy_RoleAndStatus(Role.PLANNER, TicketStatus.OPEN))

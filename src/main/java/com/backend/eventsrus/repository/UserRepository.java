@@ -17,6 +17,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByRole(Role role);
 
+    // Excludes seeded/placeholder vendors (User.fakeAccount) from the admin
+    // dashboard's vendor total - see AdminDashboardController.
+    long countByRoleAndFakeAccountFalse(Role role);
+
     // Declared vendor intent (signed up through "Become a Vendor") but
     // hasn't finished the onboarding form yet (role hasn't flipped to
     // VENDOR) - see UserService#findOrCreateFromGoogle.
