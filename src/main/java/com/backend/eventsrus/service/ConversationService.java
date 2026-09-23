@@ -212,7 +212,9 @@ public class ConversationService {
                 .eventDate(conversation.getEvent().getEventDate())
                 .otherPartyUserId(otherParty.getId())
                 .otherPartyName(displayName(otherParty))
-                .otherPartyBusinessType(otherPartyProfile.map(VendorProfile::getBusinessType).orElse(null))
+                .otherPartyBusinessType(otherPartyProfile
+                        .flatMap(p -> p.getBusinessTypes().stream().findFirst())
+                        .orElse(null))
                 .otherPartySlug(otherPartyProfile.map(VendorProfile::getSlug).orElse(null))
                 .lastMessagePreview(last != null ? last.getBody() : null)
                 .lastMessageAt(last != null ? last.getCreatedAt() : null)
