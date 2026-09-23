@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.enums.BillingSource;
 import com.backend.eventsrus.enums.SubscriptionStatus;
 import com.backend.eventsrus.model.VendorSubscription;
 import com.backend.eventsrus.model.VendorSubscriptionEvent;
@@ -100,7 +101,7 @@ public class PayPalWebhookService {
 
         Instant periodEnd = subscription.getCurrentPeriodEnd() != null ? subscription.getCurrentPeriodEnd() : periodStart;
         vendorBillingHistoryService.recordPayment(
-                subscription, amount, currency, transactionId, periodStart, periodEnd, Instant.now());
+                subscription, amount, currency, transactionId, periodStart, periodEnd, Instant.now(), BillingSource.PAYPAL);
     }
 
     private void refreshPeriodEndFromPayPal(VendorSubscription subscription) {

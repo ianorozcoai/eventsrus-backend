@@ -59,6 +59,7 @@ public class UserService {
     private final VendorBillingHistoryService vendorBillingHistoryService;
     private final RecaptchaVerificationService recaptchaVerificationService;
     private final VendorReferralService vendorReferralService;
+    private final PromoCodeService promoCodeService;
     private final BookingRepository bookingRepository;
     private final EventRepository eventRepository;
     private final SystemSettingService systemSettingService;
@@ -158,6 +159,11 @@ public class UserService {
         // uploads below - a blank code is fine (referral is optional).
         vendorReferralService.requireValidReferralCodeIfPresent(request.getReferralCode());
 
+        // Same fail-fast treatment for an invalid (non-blank) promo code -
+        // see PromoCodeService. promoApplied decides below whether this
+        // vendor gets the full free trial or has to pay/skip instead.
+        boolean promoApplied = promoCodeService.isValidIfPresent(request.getPromoCode());
+
         VendorProfile profile = vendorProfileRepository.findByUserId(user.getId())
                 .orElseGet(() -> VendorProfile.builder().user(user).build());
 
@@ -188,7 +194,7 @@ public class UserService {
         profile.setPostalCode(request.getPostalCode());
         profile.setCountry(request.getCountry());
         profile.setBusinessName(request.getBusinessName());
-        profile.setBusinessType(request.getBusinessType());
+        profile.setBusinessTypes(request.getBusinessTypes());
         if (request.getOperatingAreas() != null) {
             profile.setOperatingAreas(request.getOperatingAreas());
         }
@@ -236,7 +242,13 @@ public class UserService {
         // Javadoc.
         vendorReferralService.attribute(user, request.getReferralCode());
 
-        if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
+        // Only a valid promo code grants the full free trial automatically -
+        // otherwise no subscription row is created here at all, and the
+        // vendor is left in VendorPlanService's "never subscribed" state
+        // until they pay via PayPal or GCash (see VendorSubscriptionService
+        // #submitGcashPayment), which is what drives the required
+        // plan-selection paywall on the web dashboard.
+        if (promoApplied && !vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
             Instant trialEnd = now.plus(systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS), ChronoUnit.DAYS);
             VendorSubscription subscription = vendorSubscriptionRepository.save(
@@ -248,7 +260,7 @@ public class UserService {
                             .billingSource(BillingSource.FREE_GRANT)
                             .status(SubscriptionStatus.ACTIVE)
                             .build());
-            vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd);
+            vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd, BillingSource.FREE_GRANT);
         }
 
         // Fired last, after every other step has succeeded - this method is
@@ -290,7 +302,7 @@ public class UserService {
                         profile.getOwnerName(),
                         profile.getContactEmail(),
                         profile.getPhoneNumber(),
-                        profile.getBusinessType(),
+                        List.copyOf(profile.getBusinessTypes()),
                         profile.getSlug(),
                         profile.getCity(),
                         profile.getState(),
@@ -480,7 +492,9 @@ public class UserService {
         profile.setBusinessName(request.getBusinessName());
         profile.setDescription(request.getDescription());
         profile.setOwnerName(request.getOwnerName());
-        profile.setBusinessType(request.getBusinessType());
+        if (request.getBusinessTypes() != null) {
+            profile.setBusinessTypes(request.getBusinessTypes());
+        }
         profile.setContactEmail(request.getContactEmail());
         profile.setPhoneNumber(request.getPhoneNumber());
         profile.setFacebookPageUrl(request.getFacebookPageUrl());
@@ -490,13 +504,6 @@ public class UserService {
         profile.setState(request.getState());
         profile.setPostalCode(request.getPostalCode());
         profile.setCountry(request.getCountry());
-
-        // primaryCategory has no separate UI/input of its own anymore -
-        // businessType covers the same idea, so this just keeps the two in
-        // sync server-side rather than leaving primaryCategory stuck at
-        // whatever it was (or null) forever now that nothing sets it.
-        // Nothing else in the backend actually reads primaryCategory today.
-        profile.setPrimaryCategory(request.getBusinessType());
         profile.setMaxGuestCapacity(request.getMaxGuestCapacity());
         profile.setMaxCustomersPerDay(request.getMaxCustomersPerDay());
         profile.setBasePrice(request.getBasePrice());
@@ -568,7 +575,7 @@ public class UserService {
                 .businessName(profile.getBusinessName())
                 .description(profile.getDescription())
                 .ownerName(profile.getOwnerName())
-                .businessType(profile.getBusinessType())
+                .businessTypes(new ArrayList<>(profile.getBusinessTypes()))
                 .contactEmail(profile.getContactEmail())
                 .phoneNumber(profile.getPhoneNumber())
                 .facebookPageUrl(profile.getFacebookPageUrl())
@@ -583,7 +590,6 @@ public class UserService {
                 .selfieUrl(s3UploadService.presignedUrl(profile.getSelfieKey(), PRESIGNED_URL_TTL))
                 .verified(profile.isVerified())
                 .verifiedAt(profile.getVerifiedAt())
-                .primaryCategory(profile.getPrimaryCategory())
                 .maxGuestCapacity(profile.getMaxGuestCapacity())
                 .maxCustomersPerDay(profile.getMaxCustomersPerDay())
                 .basePrice(profile.getBasePrice())
@@ -677,7 +683,7 @@ public class UserService {
             String ownerName,
             String contactEmail,
             String phoneNumber,
-            BusinessType businessType,
+            List<BusinessType> businessTypes,
             String slug,
             String city,
             String state,

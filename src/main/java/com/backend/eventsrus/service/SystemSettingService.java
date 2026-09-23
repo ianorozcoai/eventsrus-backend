@@ -60,6 +60,10 @@ public class SystemSettingService {
         return new BigDecimal(cache.getOrDefault(key.key(), key.defaultValue()));
     }
 
+    public String getString(SystemSettingKey key) {
+        return cache.getOrDefault(key.key(), key.defaultValue());
+    }
+
     public List<SystemSettingResponse> listAll() {
         return Arrays.stream(SystemSettingKey.values())
                 .map(this::toResponse)
@@ -71,6 +75,22 @@ public class SystemSettingService {
         SystemSettingKey key = SystemSettingKey.fromKey(rawKey)
                 .orElseThrow(() -> new InvalidSystemSettingException("Unknown setting: " + rawKey));
 
+        String newValue = key.numeric() ? String.valueOf(parseNonNegativeInt(rawValue)) : requireNonBlank(rawValue);
+
+        SystemSetting setting = systemSettingRepository.findById(key.key())
+                .orElseGet(() -> {
+                    SystemSetting created = new SystemSetting();
+                    created.setSettingKey(key.key());
+                    return created;
+                });
+        setting.setSettingValue(newValue);
+        systemSettingRepository.save(setting);
+        cache.put(key.key(), newValue);
+
+        return toResponse(key);
+    }
+
+    private int parseNonNegativeInt(String rawValue) {
         String trimmed = rawValue == null ? "" : rawValue.trim();
         int parsed;
         try {
@@ -81,18 +101,15 @@ public class SystemSettingService {
         if (parsed < 0) {
             throw new InvalidSystemSettingException("Value must be zero or greater.");
         }
+        return parsed;
+    }
 
-        SystemSetting setting = systemSettingRepository.findById(key.key())
-                .orElseGet(() -> {
-                    SystemSetting created = new SystemSetting();
-                    created.setSettingKey(key.key());
-                    return created;
-                });
-        setting.setSettingValue(String.valueOf(parsed));
-        systemSettingRepository.save(setting);
-        cache.put(key.key(), String.valueOf(parsed));
-
-        return toResponse(key);
+    private String requireNonBlank(String rawValue) {
+        String trimmed = rawValue == null ? "" : rawValue.trim();
+        if (trimmed.isEmpty()) {
+            throw new InvalidSystemSettingException("Value is required.");
+        }
+        return trimmed;
     }
 
     private SystemSettingResponse toResponse(SystemSettingKey key) {
@@ -101,6 +118,7 @@ public class SystemSettingService {
                 .label(key.label())
                 .description(key.description())
                 .value(cache.getOrDefault(key.key(), key.defaultValue()))
+                .numeric(key.numeric())
                 .build();
     }
 }

@@ -13,4 +13,5 @@ public class SystemSettingResponse {
     private String label;
     private String description;
     private String value;
+    private boolean numeric;
 }

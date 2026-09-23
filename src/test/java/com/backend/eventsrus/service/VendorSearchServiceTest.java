@@ -3,6 +3,7 @@ package com.backend.eventsrus.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.backend.eventsrus.enums.BillingSource;
 import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.EventType;
 import com.backend.eventsrus.enums.PlanTier;
@@ -49,7 +50,7 @@ class VendorSearchServiceTest {
         return VendorProfile.builder()
                 .id(userId)
                 .user(user)
-                .businessType(BusinessType.CATERING)
+                .businessTypes(List.of(BusinessType.CATERING))
                 .verified(verified)
                 .topVendor(topVendor)
                 .leadTimeDays(leadTimeDays)
@@ -59,18 +60,18 @@ class VendorSearchServiceTest {
 
     private void activeSubscriptionFor(long userId) {
         when(vendorPlanService.getEffectivePlan(userId))
-                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, false, null));
+                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, false, null, BillingSource.FREE_GRANT));
     }
 
     private void noSubscriptionFor(long userId) {
         when(vendorPlanService.getEffectivePlan(userId))
-                .thenReturn(new EffectivePlan(null, null, false, false, false, null));
+                .thenReturn(new EffectivePlan(null, null, false, false, false, null, null));
     }
 
     /** A lapsed plan still inside its grace period - plan() stays non-null, same as an active plan. */
     private void gracePeriodSubscriptionFor(long userId) {
         when(vendorPlanService.getEffectivePlan(userId))
-                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, true, null));
+                .thenReturn(new EffectivePlan(PlanTier.PRO, null, false, false, true, null, BillingSource.FREE_GRANT));
     }
 
     @Test

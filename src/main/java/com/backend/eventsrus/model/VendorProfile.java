@@ -115,14 +115,18 @@ public class VendorProfile extends BaseEntity {
     @Column(name = "business_name")
     private String businessName;
 
+    // A vendor can span several categories (e.g. a caterer who also does
+    // event coordination) - a typed collection, same shape as
+    // cateredEventTypes below, not operatingAreas' free-form strings, since
+    // BusinessType is a real enum. Replaces the old single-value
+    // businessType/primaryCategory scalar columns (still present in the DB,
+    // just unmapped/unused now - see V51).
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "vendor_business_types", joinColumns = @JoinColumn(name = "vendor_profile_id"))
     @Enumerated(EnumType.STRING)
     @Column(name = "business_type")
-    private BusinessType businessType;
-
-    // Business Scope (Account Settings tab 2)
-    @Enumerated(EnumType.STRING)
-    @Column(name = "primary_category")
-    private BusinessType primaryCategory;
+    @Builder.Default
+    private List<BusinessType> businessTypes = new ArrayList<>();
 
     @Column(name = "max_guest_capacity")
     private Integer maxGuestCapacity;

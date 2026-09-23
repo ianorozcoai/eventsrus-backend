@@ -18,7 +18,7 @@ public class VendorSettingsRequest {
     private String businessName;
     private String description;
     private String ownerName;
-    private BusinessType businessType;
+    private List<BusinessType> businessTypes;
     private String contactEmail;
     private String phoneNumber;
     @URL(message = "Enter a valid Facebook page URL")
@@ -31,7 +31,6 @@ public class VendorSettingsRequest {
     private String country;
 
     // Tab 2 — Service Scope & Metrics
-    private BusinessType primaryCategory;
     private Integer maxGuestCapacity;
     private Integer maxCustomersPerDay;
     private BigDecimal basePrice;

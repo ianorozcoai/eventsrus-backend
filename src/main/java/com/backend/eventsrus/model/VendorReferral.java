@@ -58,4 +58,17 @@ public class VendorReferral extends BaseEntity {
 
     @Column(name = "paid_at")
     private Instant paidAt;
+
+    // Optional admin-entered payout details, set at the same time as paidAt
+    // (see VendorReferralService#markPaid) - both null when marked paid
+    // without any remarks/proof attached. Visible to the referring vendor
+    // on their own referrals page, not just admins.
+    @Column(name = "payment_remarks", columnDefinition = "TEXT")
+    private String paymentRemarks;
+
+    @Column(name = "payment_proof_key")
+    private String paymentProofKey;
+
+    @Column(name = "payment_proof_uploaded_at")
+    private Instant paymentProofUploadedAt;
 }

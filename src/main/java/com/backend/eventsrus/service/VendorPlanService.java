@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.enums.BillingSource;
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.SubscriptionExpiredException;
@@ -30,7 +31,7 @@ public class VendorPlanService {
     public EffectivePlan getEffectivePlan(Long userId) {
         return vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
                 .map(this::computeFrom)
-                .orElseGet(() -> new EffectivePlan(null, null, false, false, false, null));
+                .orElseGet(() -> new EffectivePlan(null, null, false, false, false, null, null));
     }
 
     /** Throws if the vendor has no live plan - use to gate quotations, chat, and bookings on the vendor's side. */
@@ -45,7 +46,7 @@ public class VendorPlanService {
         Instant periodEnd = subscription.getCurrentPeriodEnd();
         if (periodEnd == null) {
             // Still APPROVAL_PENDING — PayPal hasn't confirmed a billing period yet.
-            return new EffectivePlan(null, null, false, false, false, null);
+            return new EffectivePlan(null, null, false, false, false, null, subscription.getBillingSource());
         }
 
         Instant now = Instant.now();
@@ -59,14 +60,16 @@ public class VendorPlanService {
             Instant graceEndsAt = periodEnd.plus(
                     systemSettingService.getInt(SystemSettingKey.SUBSCRIPTION_GRACE_PERIOD_DAYS), ChronoUnit.DAYS);
             if (graceEndsAt.isAfter(now)) {
-                return new EffectivePlan(subscription.getPlan(), periodEnd, false, false, true, graceEndsAt);
+                return new EffectivePlan(
+                        subscription.getPlan(), periodEnd, false, false, true, graceEndsAt, subscription.getBillingSource());
             }
-            return new EffectivePlan(null, periodEnd, false, true, false, null);
+            return new EffectivePlan(null, periodEnd, false, true, false, null, subscription.getBillingSource());
         }
 
         boolean expiringSoon = periodEnd.isBefore(
                 now.plus(systemSettingService.getInt(SystemSettingKey.SUBSCRIPTION_WARNING_DAYS), ChronoUnit.DAYS));
-        return new EffectivePlan(subscription.getPlan(), periodEnd, expiringSoon, false, false, null);
+        return new EffectivePlan(
+                subscription.getPlan(), periodEnd, expiringSoon, false, false, null, subscription.getBillingSource());
     }
 
     /**
@@ -74,10 +77,13 @@ public class VendorPlanService {
      * passed but the grace window (see SUBSCRIPTION_GRACE_PERIOD_DAYS) hasn't
      * - mutually exclusive with expired, which only becomes true once the
      * grace window itself has also lapsed. plan() stays non-null throughout
-     * the grace period, same as a normal active plan.
+     * the grace period, same as a normal active plan. billingSource is null
+     * only when there's no subscription row at all (never subscribed) - the
+     * paywall uses that, together with expiresAt() also being null and
+     * every warning flag being false, to detect "needs plan selection."
      */
     public record EffectivePlan(
             PlanTier plan, Instant expiresAt, boolean expiringSoon, boolean expired, boolean inGracePeriod,
-            Instant graceEndsAt) {
+            Instant graceEndsAt, BillingSource billingSource) {
     }
 }

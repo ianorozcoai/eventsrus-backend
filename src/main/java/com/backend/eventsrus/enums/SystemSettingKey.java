@@ -61,18 +61,30 @@ public enum SystemSettingKey {
             "planner-digital-wedding-price",
             "Digital Debut/Wedding Invitation price (PHP)",
             "One-time price for a planner's digital debut or wedding invitation site. Reserved for the upcoming digital invitations upsell feature - not yet wired to any checkout flow.",
-            "1299");
+            "1299"),
+    VENDOR_PROMO_CODE(
+            "vendor-promo-code",
+            "Vendor Promo Code",
+            "Code a new vendor can enter at onboarding instead of paying - grants the full free trial (see Vendor free trial length) with no paywall.",
+            "FREE3M",
+            false);
 
     private final String key;
     private final String label;
     private final String description;
     private final String defaultValue;
+    private final boolean numeric;
 
     SystemSettingKey(String key, String label, String description, String defaultValue) {
+        this(key, label, description, defaultValue, true);
+    }
+
+    SystemSettingKey(String key, String label, String description, String defaultValue, boolean numeric) {
         this.key = key;
         this.label = label;
         this.description = description;
         this.defaultValue = defaultValue;
+        this.numeric = numeric;
     }
 
     public String key() {
@@ -89,6 +101,10 @@ public enum SystemSettingKey {
 
     public String defaultValue() {
         return defaultValue;
+    }
+
+    public boolean numeric() {
+        return numeric;
     }
 
     public static Optional<SystemSettingKey> fromKey(String key) {

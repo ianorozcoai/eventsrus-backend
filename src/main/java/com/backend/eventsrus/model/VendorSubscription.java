@@ -59,4 +59,25 @@ public class VendorSubscription extends BaseEntity {
 
     @Column(name = "paypal_plan_id")
     private String paypalPlanId;
+
+    // GCash's manual-payment flow (see VendorSubscriptionService#
+    // submitGcashPayment) - a private S3 key, read back only via a
+    // presigned URL for admin review.
+    @Column(name = "payment_screenshot_key")
+    private String paymentScreenshotKey;
+
+    @Column(name = "payment_screenshot_uploaded_at")
+    private Instant paymentScreenshotUploadedAt;
+
+    // Both reflect only the CURRENT/latest review outcome - the full
+    // back-and-forth (every submit/verify/reject) lives in
+    // vendor_subscription_events instead (see VendorSubscriptionService's
+    // GCASH_SUBMITTED/GCASH_VERIFIED/GCASH_REJECTED events). rejectionReason
+    // is cleared on the next submission or once verified; vendorRemarks is
+    // the vendor's own note, set on submission (see submitGcashPayment).
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
+    @Column(name = "vendor_remarks", columnDefinition = "TEXT")
+    private String vendorRemarks;
 }

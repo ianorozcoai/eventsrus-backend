@@ -78,7 +78,7 @@ public class VendorDirectoryService {
                 .ownerName(profile.getOwnerName())
                 .description(profile.getDescription())
                 .logoImageUrl(profile.getLogoImageUrl())
-                .businessType(profile.getBusinessType())
+                .businessTypes(List.copyOf(profile.getBusinessTypes()))
                 .city(profile.getCity())
                 .state(profile.getState())
                 .country(profile.getCountry())

@@ -23,7 +23,7 @@ public class AdminVendorListItemResponse {
     private String ownerName;
     private String contactEmail;
     private String phoneNumber;
-    private BusinessType businessType;
+    private List<BusinessType> businessTypes;
     private String slug;
     private String city;
     private String state;

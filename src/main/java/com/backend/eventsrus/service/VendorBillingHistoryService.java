@@ -27,11 +27,12 @@ public class VendorBillingHistoryService {
     private final UserRepository userRepository;
 
     @Transactional
-    public void recordFreeGrant(VendorSubscription subscription, Instant periodStart, Instant periodEnd) {
+    public void recordFreeGrant(
+            VendorSubscription subscription, Instant periodStart, Instant periodEnd, BillingSource billingSource) {
         vendorBillingHistoryEntryRepository.save(VendorBillingHistoryEntry.builder()
                 .vendorSubscription(subscription)
                 .plan(subscription.getPlan())
-                .billingSource(BillingSource.FREE_GRANT)
+                .billingSource(billingSource)
                 .amount(null)
                 .currency(null)
                 .paypalTransactionId(null)
@@ -50,14 +51,14 @@ public class VendorBillingHistoryService {
     @Transactional
     public void recordPayment(
             VendorSubscription subscription, BigDecimal amount, String currency, String paypalTransactionId,
-            Instant periodStart, Instant periodEnd, Instant occurredAt) {
+            Instant periodStart, Instant periodEnd, Instant occurredAt, BillingSource billingSource) {
         if (paypalTransactionId != null && vendorBillingHistoryEntryRepository.existsByPaypalTransactionId(paypalTransactionId)) {
             return;
         }
         vendorBillingHistoryEntryRepository.save(VendorBillingHistoryEntry.builder()
                 .vendorSubscription(subscription)
                 .plan(subscription.getPlan())
-                .billingSource(BillingSource.PAYPAL)
+                .billingSource(billingSource)
                 .amount(amount)
                 .currency(currency)
                 .paypalTransactionId(paypalTransactionId)
@@ -65,6 +66,19 @@ public class VendorBillingHistoryService {
                 .periodEnd(periodEnd)
                 .occurredAt(occurredAt)
                 .build());
+    }
+
+    /**
+     * Drops the temporary-access "free grant" entry recordFreeGrant created
+     * when this same subscription's GCash screenshot was first submitted -
+     * called from VendorSubscriptionService#verifyGcashPayment once the real,
+     * amount-bearing payment for it has just been recorded, so the vendor's
+     * billing history shows only the one real record, not both the
+     * temporary grant and the payment that superseded it.
+     */
+    @Transactional
+    public void removeFreeGrant(VendorSubscription subscription) {
+        vendorBillingHistoryEntryRepository.deleteByVendorSubscriptionAndAmountIsNull(subscription);
     }
 
     @Transactional(readOnly = true)

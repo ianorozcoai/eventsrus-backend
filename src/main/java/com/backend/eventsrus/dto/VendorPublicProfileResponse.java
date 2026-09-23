@@ -16,7 +16,7 @@ public class VendorPublicProfileResponse {
     private String ownerName;
     private String description;
     private String logoImageUrl;
-    private BusinessType businessType;
+    private List<BusinessType> businessTypes;
     private String city;
     private String state;
     private String country;

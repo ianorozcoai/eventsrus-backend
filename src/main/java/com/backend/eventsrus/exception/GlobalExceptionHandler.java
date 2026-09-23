@@ -86,9 +86,21 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidRejectionReasonException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRejectionReason(
+            InvalidRejectionReasonException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(InvalidReferralCodeException.class)
     public ResponseEntity<ErrorResponse> handleInvalidReferralCode(
             InvalidReferralCodeException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(InvalidPromoCodeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPromoCode(
+            InvalidPromoCodeException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 

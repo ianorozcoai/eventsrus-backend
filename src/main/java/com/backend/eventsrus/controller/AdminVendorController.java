@@ -53,7 +53,7 @@ public class AdminVendorController {
                         .ownerName(v.ownerName())
                         .contactEmail(v.contactEmail())
                         .phoneNumber(v.phoneNumber())
-                        .businessType(v.businessType())
+                        .businessTypes(v.businessTypes())
                         .slug(v.slug())
                         .city(v.city())
                         .state(v.state())

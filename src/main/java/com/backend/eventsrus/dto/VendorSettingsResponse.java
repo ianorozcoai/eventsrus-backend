@@ -22,7 +22,7 @@ public class VendorSettingsResponse {
     private String businessName;
     private String description;
     private String ownerName;
-    private BusinessType businessType;
+    private List<BusinessType> businessTypes;
     private String contactEmail;
     private String phoneNumber;
     private String facebookPageUrl;
@@ -45,7 +45,6 @@ public class VendorSettingsResponse {
     private boolean verified;
     private Instant verifiedAt;
 
-    private BusinessType primaryCategory;
     private Integer maxGuestCapacity;
     private Integer maxCustomersPerDay;
     private BigDecimal basePrice;

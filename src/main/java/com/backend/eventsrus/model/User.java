@@ -97,4 +97,13 @@ public class User extends BaseEntity {
     @Column(name = "fake_account", nullable = false)
     @Builder.Default
     private boolean fakeAccount = false;
+
+    // Has this vendor ever seen the one-time "Welcome to PRO" popup (see
+    // VendorSubscriptionService#statusResponseFor/markProWelcomeShown)? A
+    // per-user lifetime flag, not per-subscription-row, since the point is
+    // to celebrate first becoming a paying/promo PRO vendor once - not to
+    // re-fire on every renewal or on a new VendorSubscription row.
+    @Column(name = "pro_welcome_shown", nullable = false)
+    @Builder.Default
+    private boolean proWelcomeShown = false;
 }

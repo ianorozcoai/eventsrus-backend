@@ -19,4 +19,6 @@ public class VendorReferralResponse {
     private Instant createdAt;
     private Instant convertedAt;
     private Instant paidAt;
+    private String paymentRemarks;
+    private String paymentProofUrl;
 }

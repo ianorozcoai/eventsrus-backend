@@ -14,6 +14,7 @@ import com.backend.eventsrus.repository.VendorProfileRepository;
 import com.backend.eventsrus.repository.VendorReferralRepository;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Vendor-refers-vendor program: a vendor shares their referral link, a new
@@ -44,6 +46,10 @@ public class VendorReferralService {
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int CODE_LENGTH = 8;
 
+    // Matches VendorSubscriptionService's own PAYMENT_SCREENSHOT_URL_TTL for
+    // the same purpose (a private-document link sitting on a review page).
+    private static final Duration PAYMENT_PROOF_URL_TTL = Duration.ofHours(1);
+
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
 
@@ -51,6 +57,7 @@ public class VendorReferralService {
     private final VendorProfileRepository vendorProfileRepository;
     private final UserRepository userRepository;
     private final SystemSettingService systemSettingService;
+    private final S3UploadService s3UploadService;
 
     public String generateUniqueReferralCode() {
         SecureRandom random = new SecureRandom();
@@ -217,12 +224,26 @@ public class VendorReferralService {
         return vendorReferralRepository.findByReferred_Id(referredUserId).map(this::toAdminResponse);
     }
 
+    /**
+     * remarks and proof are both optional - an admin can mark paid with
+     * neither if they don't have a screenshot handy. proof (a transfer
+     * screenshot or deposit slip) is uploaded the same way a GCash payment
+     * screenshot is - see VendorSubscriptionService#submitGcashPayment.
+     */
     @Transactional
-    public void markPaid(Long referralId) {
+    public void markPaid(Long referralId, String remarks, MultipartFile proof) {
         VendorReferral referral = vendorReferralRepository.findById(referralId)
                 .orElseThrow(() -> new IllegalStateException("Referral not found: " + referralId));
         referral.setStatus(ReferralStatus.COMMISSION_PAID);
         referral.setPaidAt(Instant.now());
+        referral.setPaymentRemarks(remarks != null && !remarks.isBlank() ? remarks : null);
+        if (proof != null && !proof.isEmpty()) {
+            String key = s3UploadService
+                    .upload(proof, "referrals/" + referralId + "/payment-proof", S3UploadService.Visibility.PRIVATE)
+                    .key();
+            referral.setPaymentProofKey(key);
+            referral.setPaymentProofUploadedAt(Instant.now());
+        }
         vendorReferralRepository.save(referral);
     }
 
@@ -246,6 +267,8 @@ public class VendorReferralService {
                 .createdAt(referral.getCreatedAt())
                 .convertedAt(referral.getConvertedAt())
                 .paidAt(referral.getPaidAt())
+                .paymentRemarks(referral.getPaymentRemarks())
+                .paymentProofUrl(s3UploadService.presignedUrl(referral.getPaymentProofKey(), PAYMENT_PROOF_URL_TTL))
                 .build();
     }
 
@@ -263,6 +286,8 @@ public class VendorReferralService {
                 .createdAt(referral.getCreatedAt())
                 .convertedAt(referral.getConvertedAt())
                 .paidAt(referral.getPaidAt())
+                .paymentRemarks(referral.getPaymentRemarks())
+                .paymentProofUrl(s3UploadService.presignedUrl(referral.getPaymentProofKey(), PAYMENT_PROOF_URL_TTL))
                 .build();
     }
 }

@@ -20,13 +20,11 @@ public interface VendorProfileRepository extends JpaRepository<VendorProfile, Lo
 
     boolean existsByReferralCode(String referralCode);
 
-    List<VendorProfile> findByBusinessTypeAndCityIgnoreCase(BusinessType businessType, String city);
-
     List<VendorProfile> findByCityIgnoreCase(String city);
 
-    /** Vendors of {@code businessType} whose operating areas include {@code area}, or who serve "Entire Philippines". */
-    @Query("select vp from VendorProfile vp join vp.operatingAreas oa "
-            + "where vp.businessType = :businessType and (oa = :area or oa = 'Entire Philippines')")
+    /** Vendors who include {@code businessType} among their types, whose operating areas include {@code area}, or who serve "Entire Philippines". */
+    @Query("select vp from VendorProfile vp join vp.businessTypes bt join vp.operatingAreas oa "
+            + "where bt = :businessType and (oa = :area or oa = 'Entire Philippines')")
     List<VendorProfile> findByBusinessTypeAndOperatingArea(
             @Param("businessType") BusinessType businessType, @Param("area") String area);
 }

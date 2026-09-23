@@ -5,7 +5,7 @@ import com.backend.eventsrus.enums.EventType;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,8 +20,8 @@ public class VendorOnboardingRequest {
     @NotBlank
     private String businessName;
 
-    @NotNull(message = "Select a business type")
-    private BusinessType businessType;
+    @NotEmpty(message = "Select at least one business type")
+    private List<BusinessType> businessTypes;
 
     @NotBlank(message = "Owner name is required")
     private String ownerName;
@@ -71,4 +71,10 @@ public class VendorOnboardingRequest {
     // referral link (see VendorReferralService#attribute) - optional,
     // silently ignored if missing/invalid, never blocks onboarding.
     private String referralCode;
+
+    // Optional code checked against SystemSettingKey.VENDOR_PROMO_CODE (see
+    // PromoCodeService) - a valid code grants the full free trial with no
+    // paywall; blank means the vendor goes through the pay-or-skip flow
+    // instead (see UserService#becomeVendor).
+    private String promoCode;
 }
