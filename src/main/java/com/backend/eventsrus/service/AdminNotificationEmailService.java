@@ -55,6 +55,18 @@ public class AdminNotificationEmailService {
                         + "Email: " + user.getEmail());
     }
 
+    // PayPal's own retry/dunning schedule handles the subscription itself
+    // (it fires BILLING.SUBSCRIPTION.SUSPENDED/CANCELLED later if retries
+    // are exhausted - see PayPalWebhookService) - this is just an early
+    // heads-up so support can proactively follow up before that happens.
+    @Async
+    public void notifyPaymentFailed(User vendor) {
+        send("PayPal subscription payment failed",
+                "A vendor's subscription renewal payment failed.\n\n"
+                        + "Name: " + displayName(vendor) + "\n"
+                        + "Email: " + vendor.getEmail());
+    }
+
     private String displayName(User user) {
         if (user.getFirstName() == null) {
             return user.getEmail();

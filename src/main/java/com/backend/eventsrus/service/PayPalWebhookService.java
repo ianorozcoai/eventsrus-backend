@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.enums.BillingSource;
+import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.SubscriptionStatus;
 import com.backend.eventsrus.model.VendorSubscription;
 import com.backend.eventsrus.model.VendorSubscriptionEvent;
@@ -24,6 +25,8 @@ public class PayPalWebhookService {
     private final PayPalSubscriptionClient payPalSubscriptionClient;
     private final VendorBillingHistoryService vendorBillingHistoryService;
     private final VendorReferralService vendorReferralService;
+    private final NotificationService notificationService;
+    private final AdminNotificationEmailService adminNotificationEmailService;
 
     @Transactional
     public void handle(JsonNode event) {
@@ -85,9 +88,22 @@ public class PayPalWebhookService {
             // access until the already-paid-for period ends.
             case "BILLING.SUBSCRIPTION.SUSPENDED" -> subscription.setStatus(SubscriptionStatus.SUSPENDED);
             case "BILLING.SUBSCRIPTION.EXPIRED" -> subscription.setStatus(SubscriptionStatus.EXPIRED);
+            // Deliberately NOT touching status here either — PayPal retries a
+            // failed renewal on its own schedule and only fires
+            // BILLING.SUBSCRIPTION.SUSPENDED/CANCELLED once retries are
+            // exhausted (handled above). This is just an early warning so the
+            // vendor can fix their payment method before that happens.
+            case "PAYMENT.SALE.DENIED" -> {
+                notificationService.notify(subscription.getUser(), NotificationType.SUBSCRIPTION_PAYMENT_FAILED,
+                        "Subscription payment failed",
+                        "Your last PRO subscription payment couldn't be processed. Please update your payment "
+                                + "method to avoid losing access when your current period ends.",
+                        "SUBSCRIPTION", subscription.getId());
+                adminNotificationEmailService.notifyPaymentFailed(subscription.getUser());
+            }
             default -> {
                 // Logged for audit via the event row regardless; no state transition
-                // acted on for this pass (e.g. BILLING.SUBSCRIPTION.UPDATED, PAYMENT.FAILED).
+                // acted on for this pass (e.g. BILLING.SUBSCRIPTION.UPDATED).
             }
         }
         vendorSubscriptionRepository.save(subscription);
@@ -114,7 +130,10 @@ public class PayPalWebhookService {
 
     private VendorSubscription resolveSubscription(JsonNode event, String eventType) {
         JsonNode resource = event.path("resource");
-        String paypalSubscriptionId = "PAYMENT.SALE.COMPLETED".equals(eventType)
+        // Both PAYMENT.SALE.* events describe a Sale resource keyed to the
+        // subscription via billing_agreement_id, not the Sale's own id.
+        boolean isSaleEvent = "PAYMENT.SALE.COMPLETED".equals(eventType) || "PAYMENT.SALE.DENIED".equals(eventType);
+        String paypalSubscriptionId = isSaleEvent
                 ? resource.path("billing_agreement_id").asString(null)
                 : resource.path("id").asString(null);
 
