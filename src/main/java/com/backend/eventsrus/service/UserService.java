@@ -64,6 +64,7 @@ public class UserService {
     private final EventRepository eventRepository;
     private final SystemSettingService systemSettingService;
     private final AdminNotificationEmailService adminNotificationEmailService;
+    private final VendorPlanService vendorPlanService;
 
     /**
      * intent is "planner" or "vendor" - which login door was used (see
@@ -296,7 +297,9 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<AdminVendorListItem> listVendorsForAdmin() {
         return vendorProfileRepository.findAll().stream()
-                .map(profile -> new AdminVendorListItem(
+                .map(profile -> {
+                    VendorPlanService.EffectivePlan plan = vendorPlanService.getEffectivePlan(profile.getUser().getId());
+                    return new AdminVendorListItem(
                         profile.getUser().getId(),
                         profile.getBusinessName(),
                         profile.getOwnerName(),
@@ -325,7 +328,12 @@ public class UserService {
                         vendorReferralService.countReferralsMade(profile.getUser().getId()),
                         profile.getUser().isFakeAccount(),
                         bookingRepository.countByVendorUserIdAndStatusNot(profile.getUser().getId(), BookingStatus.CANCELLED),
-                        profile.getUser().getLastLoginAt()))
+                        profile.getUser().getLastLoginAt(),
+                        plan.billingSource() != null ? plan.billingSource().name() : null,
+                        plan.expired(),
+                        plan.inGracePeriod(),
+                        plan.expiresAt());
+                })
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
     }
@@ -699,7 +707,11 @@ public class UserService {
             long referralCount,
             boolean fakeAccount,
             long bookingCount,
-            Instant lastLoginAt) {
+            Instant lastLoginAt,
+            String billingSource,
+            boolean planExpired,
+            boolean planInGracePeriod,
+            Instant planOverdueSince) {
     }
 
     public record AdminIncompleteVendorSignup(

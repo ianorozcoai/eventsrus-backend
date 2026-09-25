@@ -40,4 +40,15 @@ public class AdminVendorListItemResponse {
     private boolean fakeAccount;
     private long bookingCount;
     private Instant lastLoginAt;
+
+    // Null billingSource means never subscribed at all (still on the
+    // paywall) - distinct from having a real PAYPAL/GCASH subscription that
+    // lapsed, which is what the admin "Payment Overdue" tab flags (see
+    // UserService#listVendorsForAdmin and VendorPlanService#getEffectivePlan,
+    // the single source of truth this is computed from - never the raw,
+    // possibly-stale VendorSubscription.status column).
+    private String billingSource;
+    private boolean planExpired;
+    private boolean planInGracePeriod;
+    private Instant planOverdueSince;
 }

@@ -70,6 +70,10 @@ public class AdminVendorController {
                         .fakeAccount(v.fakeAccount())
                         .bookingCount(v.bookingCount())
                         .lastLoginAt(v.lastLoginAt())
+                        .billingSource(v.billingSource())
+                        .planExpired(v.planExpired())
+                        .planInGracePeriod(v.planInGracePeriod())
+                        .planOverdueSince(v.planOverdueSince())
                         .build())
                 .toList();
     }

@@ -68,6 +68,8 @@ class UserServiceTest {
     private SystemSettingService systemSettingService;
     @Mock
     private AdminNotificationEmailService adminNotificationEmailService;
+    @Mock
+    private VendorPlanService vendorPlanService;
 
     private UserService userService;
 
@@ -89,7 +91,8 @@ class UserServiceTest {
                 bookingRepository,
                 eventRepository,
                 systemSettingService,
-                adminNotificationEmailService);
+                adminNotificationEmailService,
+                vendorPlanService);
     }
 
     @Nested
