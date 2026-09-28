@@ -4,6 +4,7 @@ import com.backend.eventsrus.dto.ConversationMessageResponse;
 import com.backend.eventsrus.dto.ConversationSummaryResponse;
 import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.Role;
+import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.model.Conversation;
 import com.backend.eventsrus.model.ConversationMessage;
 import com.backend.eventsrus.model.Event;
@@ -14,18 +15,24 @@ import com.backend.eventsrus.repository.ConversationRepository;
 import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class ConversationService {
+
+    private static final Duration ATTACHMENT_URL_TTL = Duration.ofHours(1);
+    private static final Set<String> ALLOWED_ATTACHMENT_TYPES = Set.of("image/png", "image/jpeg");
 
     private final ConversationRepository conversationRepository;
     private final ConversationMessageRepository conversationMessageRepository;
@@ -34,6 +41,7 @@ public class ConversationService {
     private final VendorProfileRepository vendorProfileRepository;
     private final NotificationService notificationService;
     private final VendorPlanService vendorPlanService;
+    private final S3UploadService s3UploadService;
 
     /**
      * Planner's initial inquiry — finds or creates the (event, vendor)
@@ -47,7 +55,7 @@ public class ConversationService {
     @Transactional
     public ConversationMessageResponse sendInquiry(
             String plannerEmail, Long eventId, Long vendorUserId, String plannerName, LocalDate targetDate,
-            String message) {
+            String message, MultipartFile attachment) {
         User planner = requireUser(plannerEmail);
         User vendor = userRepository.findById(vendorUserId)
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + vendorUserId));
@@ -61,7 +69,9 @@ public class ConversationService {
                         .plannerUser(planner)
                         .build()));
 
-        return postMessage(conversation, planner, vendor, targetDate, composeInquiryBody(plannerName, targetDate, message));
+        return postMessage(
+                conversation, planner, vendor, targetDate, composeInquiryBody(plannerName, targetDate, message),
+                attachment);
     }
 
     private String composeInquiryBody(String plannerName, LocalDate targetDate, String message) {
@@ -82,7 +92,8 @@ public class ConversationService {
      * instead of the planner's.
      */
     @Transactional
-    public ConversationMessageResponse sendVendorMessage(String vendorEmail, Long eventId, String message) {
+    public ConversationMessageResponse sendVendorMessage(
+            String vendorEmail, Long eventId, String message, MultipartFile attachment) {
         User vendor = requireUser(vendorEmail);
         vendorPlanService.requireActiveSubscription(vendor.getId());
         Event event = eventRepository.findById(eventId)
@@ -95,11 +106,12 @@ public class ConversationService {
                         .plannerUser(event.getPlanner())
                         .build()));
 
-        return postMessage(conversation, vendor, event.getPlanner(), null, message);
+        return postMessage(conversation, vendor, event.getPlanner(), null, message, attachment);
     }
 
     @Transactional
-    public ConversationMessageResponse sendMessage(String senderEmail, Long conversationId, String message) {
+    public ConversationMessageResponse sendMessage(
+            String senderEmail, Long conversationId, String message, MultipartFile attachment) {
         User sender = requireUser(senderEmail);
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new IllegalStateException("Conversation not found: " + conversationId));
@@ -111,7 +123,7 @@ public class ConversationService {
             vendorPlanService.requireActiveSubscription(sender.getId());
         }
 
-        return postMessage(conversation, sender, recipient, null, message);
+        return postMessage(conversation, sender, recipient, null, message, attachment);
     }
 
     @Transactional
@@ -148,12 +160,24 @@ public class ConversationService {
     }
 
     private ConversationMessageResponse postMessage(
-            Conversation conversation, User sender, User recipient, LocalDate targetDate, String message) {
+            Conversation conversation, User sender, User recipient, LocalDate targetDate, String message,
+            MultipartFile attachment) {
+        String attachmentKey = null;
+        if (attachment != null && !attachment.isEmpty()) {
+            if (!ALLOWED_ATTACHMENT_TYPES.contains(attachment.getContentType())) {
+                throw new InvalidFileTypeException("Only PNG or JPEG images are accepted as an attachment");
+            }
+            attachmentKey = s3UploadService
+                    .upload(attachment, "conversations/" + conversation.getId() + "/attachment",
+                            S3UploadService.Visibility.PRIVATE)
+                    .key();
+        }
         ConversationMessage saved = conversationMessageRepository.save(ConversationMessage.builder()
                 .conversation(conversation)
                 .sender(sender)
                 .targetDate(targetDate)
                 .body(message)
+                .attachmentKey(attachmentKey)
                 .build());
 
         notificationService.notify(recipient, NotificationType.NEW_MESSAGE,
@@ -184,6 +208,9 @@ public class ConversationService {
                 .senderName(displayName(message.getSender()))
                 .targetDate(message.getTargetDate())
                 .body(message.getBody())
+                .attachmentUrl(message.getAttachmentKey() != null
+                        ? s3UploadService.presignedUrl(message.getAttachmentKey(), ATTACHMENT_URL_TTL)
+                        : null)
                 .createdAt(message.getCreatedAt())
                 .build();
     }

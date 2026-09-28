@@ -1,10 +1,12 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.dto.GalleryPhotoLimitResponse;
 import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorGalleryPhoto;
+import com.backend.eventsrus.model.VendorImageTag;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorGalleryPhotoRepository;
@@ -81,6 +83,16 @@ public class VendorGalleryPhotoService {
         return listForVendorProfile(profile.getId());
     }
 
+    /** Admin-tunable cap plus the vendor's current standalone photo count, so the upload page can tell them how much room is left before they hit it. */
+    @Transactional(readOnly = true)
+    public GalleryPhotoLimitResponse getLimitStatus(String vendorEmail) {
+        VendorProfile profile = requireProfile(vendorEmail);
+        return GalleryPhotoLimitResponse.builder()
+                .limit(systemSettingService.getInt(SystemSettingKey.VENDOR_GALLERY_PHOTO_LIMIT))
+                .used((int) vendorGalleryPhotoRepository.countByVendorProfileId(profile.getId()))
+                .build();
+    }
+
     /** Every standalone gallery photo for a vendor, newest first - also used by VendorDirectoryService to build the storefront Gallery. */
     @Transactional(readOnly = true)
     public List<VendorPackageImageResponse> listForVendorProfile(Long vendorProfileId) {
@@ -102,6 +114,7 @@ public class VendorGalleryPhotoService {
                 .imageUrl(photo.getImageUrl())
                 .caption(photo.getCaption())
                 .createdAt(photo.getCreatedAt())
+                .tags(photo.getTags().stream().map(VendorImageTag::getName).sorted().toList())
                 .build();
     }
 

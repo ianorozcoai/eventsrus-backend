@@ -45,6 +45,13 @@ public class VendorPublicProfileResponse {
     // wants them grouped instead of flat.
     private List<VendorPackageImageResponse> galleryImages;
 
+    // Every tag name the vendor has created (see VendorDirectoryService#getPublicProfile),
+    // sorted by name - not just ones currently applied to a photo. A tag
+    // with zero tagged photos still gets its own storefront tab, empty.
+    // Empty list only when the vendor hasn't created any tags at all - the
+    // web app renders no filter tabs at all in that case.
+    private List<String> availableImageTags;
+
     // Real planner reviews (hidden ones excluded), newest first, plus the
     // aggregate. averageRating is null when there are no reviews yet.
     private List<ReviewResponse> reviews;

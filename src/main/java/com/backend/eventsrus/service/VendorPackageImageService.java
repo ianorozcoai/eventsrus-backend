@@ -4,6 +4,7 @@ import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.model.VendorImageTag;
 import com.backend.eventsrus.model.VendorPackage;
 import com.backend.eventsrus.model.VendorPackageImage;
 import com.backend.eventsrus.model.VendorProfile;
@@ -136,6 +137,7 @@ public class VendorPackageImageService {
                 .imageUrl(image.getImageUrl())
                 .caption(image.getCaption())
                 .createdAt(image.getCreatedAt())
+                .tags(image.getTags().stream().map(VendorImageTag::getName).sorted().toList())
                 .build();
     }
 

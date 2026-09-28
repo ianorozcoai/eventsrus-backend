@@ -40,4 +40,6 @@ public class QuotationResponse {
     private List<Long> packageIds;
     private List<String> packageNames;
     private Instant declinedAt;
+    private List<String> referenceImageUrls;
+    private List<String> responseImageUrls;
 }

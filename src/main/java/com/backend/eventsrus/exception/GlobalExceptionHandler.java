@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Slf4j
 @RestControllerAdvice
@@ -30,6 +31,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDuplicateUser(
             DuplicateUserException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(DuplicateTagException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateTag(
+            DuplicateTagException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(InvalidTagNameException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTagName(
+            InvalidTagNameException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
     @ExceptionHandler(AccountIdentityConflictException.class)
@@ -92,6 +105,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(TooManyAttachmentsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyAttachments(
+            TooManyAttachmentsException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(InvalidReferralCodeException.class)
     public ResponseEntity<ErrorResponse> handleInvalidReferralCode(
             InvalidReferralCodeException ex, HttpServletRequest request) {
@@ -134,6 +153,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidSystemSetting(
             InvalidSystemSettingException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
+    // Without an explicit handler this falls into handleUnexpected below and
+    // reports itself as a 500 "unexpected error" - misleading, since it's a
+    // client mistake (an oversized file), not a server bug. Handling it
+    // explicitly here, ahead of DefaultHandlerExceptionResolver's own
+    // built-in handling, is also what actually gets a real JSON body back to
+    // the caller (see eventsrus-web's GlobalExceptionHandler for the same
+    // exception's fuller story - DefaultHandlerExceptionResolver's handling
+    // of it there was reaching the browser as a bare, bodyless 413).
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONTENT_TOO_LARGE, "The file you uploaded is too large.", request, null);
     }
 
     @ExceptionHandler(Exception.class)

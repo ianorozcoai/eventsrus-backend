@@ -1,7 +1,9 @@
 package com.backend.eventsrus.controller;
 
+import com.backend.eventsrus.dto.GalleryPhotoLimitResponse;
 import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.service.VendorGalleryPhotoService;
+import com.backend.eventsrus.service.VendorImageTagService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -10,6 +12,8 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -26,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class VendorGalleryPhotoController {
 
     private final VendorGalleryPhotoService vendorGalleryPhotoService;
+    private final VendorImageTagService vendorImageTagService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public VendorPackageImageResponse create(
@@ -39,8 +44,18 @@ public class VendorGalleryPhotoController {
         return vendorGalleryPhotoService.listForVendor(authentication.getName());
     }
 
+    @GetMapping("/limit")
+    public GalleryPhotoLimitResponse limit(Authentication authentication) {
+        return vendorGalleryPhotoService.getLimitStatus(authentication.getName());
+    }
+
     @DeleteMapping("/{photoId}")
     public void delete(@PathVariable Long photoId, Authentication authentication) {
         vendorGalleryPhotoService.delete(authentication.getName(), photoId);
+    }
+
+    @PutMapping("/{photoId}/tags")
+    public void setTags(@PathVariable Long photoId, @RequestBody List<Long> tagIds, Authentication authentication) {
+        vendorImageTagService.setGalleryPhotoTags(authentication.getName(), photoId, tagIds);
     }
 }

@@ -47,6 +47,11 @@ public enum SystemSettingKey {
             "Vendor package photo limit",
             "Maximum number of photos a vendor can attach to a single package.",
             "10"),
+    QUOTATION_IMAGE_LIMIT(
+            "quotation-image-limit",
+            "Quotation image attachment limit",
+            "Maximum number of images either side can attach to one quotation, per direction (reference images from the planner, response images from the vendor) - counted cumulatively across the initial request/response and every later revision.",
+            "5"),
     VENDOR_PRO_MONTHLY_PRICE(
             "vendor-pro-monthly-price",
             "Vendor PRO monthly price (PHP)",

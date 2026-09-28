@@ -16,5 +16,6 @@ public class ConversationMessageResponse {
     private String senderName;
     private LocalDate targetDate;
     private String body;
+    private String attachmentUrl;
     private Instant createdAt;
 }

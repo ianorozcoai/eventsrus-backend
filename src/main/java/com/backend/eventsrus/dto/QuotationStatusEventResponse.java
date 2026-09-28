@@ -1,5 +1,6 @@
 package com.backend.eventsrus.dto;
 
+import com.backend.eventsrus.enums.HistoryEntryType;
 import com.backend.eventsrus.enums.QuotationStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,6 +16,9 @@ import lombok.Getter;
 public class QuotationStatusEventResponse {
 
     private Long id;
+    /** STATUS_CHANGE for a real negotiation-transition row, ATTACHMENT for a free-standing file - see QuotationService#history. */
+    private HistoryEntryType entryType;
+    /** Only populated for a STATUS_CHANGE entry - always null for an ATTACHMENT entry. */
     private QuotationStatus fromStatus;
     private QuotationStatus toStatus;
     private Long changedByUserId;
@@ -32,5 +36,9 @@ public class QuotationStatusEventResponse {
     private String paymentScreenshotUrl;
     /** Only present on a BOOKED event - the invoice/receipt the vendor attached to confirm the booking. */
     private String invoiceUrl;
+    /** Only populated for an ATTACHMENT entry - the free-standing file itself. */
+    private String attachmentUrl;
+    /** Only populated for an ATTACHMENT entry - "IMAGE" or "PDF", so the template knows how to render attachmentUrl. */
+    private String attachmentFileType;
     private Instant createdAt;
 }

@@ -3,15 +3,22 @@ package com.backend.eventsrus.service;
 import com.backend.eventsrus.dto.QuotationResponse;
 import com.backend.eventsrus.dto.QuotationStatusEventResponse;
 import com.backend.eventsrus.enums.BookingStatus;
+import com.backend.eventsrus.enums.HistoryEntryType;
 import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.PaymentType;
+import com.backend.eventsrus.enums.QuotationAttachmentFileType;
+import com.backend.eventsrus.enums.QuotationImageSource;
 import com.backend.eventsrus.enums.QuotationStatus;
+import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.InvalidFileTypeException;
 import com.backend.eventsrus.exception.QuotationConflictException;
+import com.backend.eventsrus.exception.TooManyAttachmentsException;
 import com.backend.eventsrus.model.Booking;
 import com.backend.eventsrus.model.BookingStatusEvent;
 import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.Quotation;
+import com.backend.eventsrus.model.QuotationAttachment;
+import com.backend.eventsrus.model.QuotationImage;
 import com.backend.eventsrus.model.QuotationStatusEvent;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.model.VendorPackage;
@@ -19,6 +26,8 @@ import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.BookingRepository;
 import com.backend.eventsrus.repository.BookingStatusEventRepository;
 import com.backend.eventsrus.repository.EventRepository;
+import com.backend.eventsrus.repository.QuotationAttachmentRepository;
+import com.backend.eventsrus.repository.QuotationImageRepository;
 import com.backend.eventsrus.repository.QuotationRepository;
 import com.backend.eventsrus.repository.QuotationStatusEventRepository;
 import com.backend.eventsrus.repository.UserRepository;
@@ -31,8 +40,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +55,8 @@ public class QuotationService {
 
     private static final Duration FILE_URL_TTL = Duration.ofMinutes(15);
     private static final ZoneId MANILA = ZoneId.of("Asia/Manila");
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of("image/png", "image/jpeg");
+    private static final Set<String> ALLOWED_ATTACHMENT_TYPES = Set.of("image/png", "image/jpeg", "application/pdf");
 
     // Once a quote leaves this set, it's frozen - no more revisions or
     // decline (see QuotationStatus javadoc / the Booking Conversion rule).
@@ -62,11 +75,14 @@ public class QuotationService {
     private final BookingRepository bookingRepository;
     private final BookingStatusEventRepository bookingStatusEventRepository;
     private final VendorPlanService vendorPlanService;
+    private final QuotationImageRepository quotationImageRepository;
+    private final QuotationAttachmentRepository quotationAttachmentRepository;
+    private final SystemSettingService systemSettingService;
 
     @Transactional
     public QuotationResponse requestQuotation(
             String plannerEmail, Long eventId, Long vendorUserId, LocalDate targetDate, String message,
-            List<Long> packageIds) {
+            List<Long> packageIds, List<MultipartFile> referenceImages) {
         User planner = requireUser(plannerEmail);
         User vendor = userRepository.findById(vendorUserId)
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + vendorUserId));
@@ -86,6 +102,8 @@ public class QuotationService {
                 .packageIds(validPackageIds)
                 .build());
 
+        validateAndUploadImages(quotation, referenceImages, QuotationImageSource.REQUEST);
+
         notificationService.notify(vendor, NotificationType.NEW_QUOTATION_REQUEST,
                 "New quotation request",
                 displayName(planner) + " requested a quotation for their event",
@@ -98,7 +116,8 @@ public class QuotationService {
 
     @Transactional
     public QuotationResponse respondWithPdf(
-            String vendorEmail, Long quotationId, MultipartFile pdf, String message, BigDecimal quotedAmount) {
+            String vendorEmail, Long quotationId, MultipartFile pdf, String message, BigDecimal quotedAmount,
+            List<MultipartFile> images) {
         User vendor = requireUser(vendorEmail);
         vendorPlanService.requireActiveSubscription(vendor.getId());
         Quotation quotation = quotationRepository.findById(quotationId)
@@ -122,6 +141,8 @@ public class QuotationService {
         quotation.setRespondedAt(Instant.now());
         quotation.setVersion(quotation.getVersion() + 1);
         quotationRepository.save(quotation);
+
+        validateAndUploadImages(quotation, images, QuotationImageSource.RESPONSE);
 
         notificationService.notify(quotation.getPlannerUser(), NotificationType.NEW_QUOTATION_RESPONSE,
                 "Quotation received",
@@ -149,7 +170,7 @@ public class QuotationService {
     @Transactional
     public QuotationResponse createFromChat(
             String vendorEmail, Long eventId, LocalDate targetDate, String message, List<Long> packageIds,
-            MultipartFile pdf, BigDecimal quotedAmount) {
+            MultipartFile pdf, BigDecimal quotedAmount, List<MultipartFile> images) {
         User vendor = requireUser(vendorEmail);
         vendorPlanService.requireActiveSubscription(vendor.getId());
         Event event = eventRepository.findById(eventId)
@@ -178,6 +199,8 @@ public class QuotationService {
                 .key();
         quotation.setPdfKey(key);
         quotationRepository.save(quotation);
+
+        validateAndUploadImages(quotation, images, QuotationImageSource.RESPONSE);
 
         notificationService.notify(event.getPlanner(), NotificationType.NEW_QUOTATION_RESPONSE,
                 "New quotation",
@@ -246,7 +269,8 @@ public class QuotationService {
      */
     @Transactional
     public QuotationResponse requestRevision(
-            String plannerEmail, Long quotationId, LocalDate targetDate, String message, List<Long> packageIds) {
+            String plannerEmail, Long quotationId, LocalDate targetDate, String message, List<Long> packageIds,
+            List<MultipartFile> images) {
         User planner = requireUser(plannerEmail);
         Quotation quotation = requirePlannerOwnedQuotation(planner, quotationId);
         if (quotation.getStatus() != QuotationStatus.QUOTE_SENT && quotation.getStatus() != QuotationStatus.REVISION_SENT) {
@@ -275,6 +299,8 @@ public class QuotationService {
         // steps. Incrementing here too used to double-count every revision
         // cycle, so a vendor's second real quote showed up labeled v3.
         quotationRepository.save(quotation);
+
+        validateAndUploadImages(quotation, images, QuotationImageSource.REQUEST);
 
         notificationService.notify(quotation.getVendorUser(), NotificationType.NEW_QUOTATION_REQUEST,
                 "Quotation revision requested",
@@ -490,9 +516,60 @@ public class QuotationService {
         }
 
         Long vendorUserId = quotation.getVendorUser().getId();
-        return quotationStatusEventRepository.findByQuotationIdOrderByCreatedAtAsc(quotationId).stream()
-                .map(event -> toStatusEventResponse(event, vendorUserId))
+        Stream<QuotationStatusEventResponse> statusEvents = quotationStatusEventRepository
+                .findByQuotationIdOrderByCreatedAtAsc(quotationId).stream()
+                .map(event -> toStatusEventResponse(event, vendorUserId));
+        Stream<QuotationStatusEventResponse> attachments = quotationAttachmentRepository
+                .findByQuotationIdOrderByCreatedAtAsc(quotationId).stream()
+                .map(attachment -> toAttachmentResponse(attachment, vendorUserId, quotation.getVersion()));
+        return Stream.concat(statusEvents, attachments)
+                .sorted(Comparator.comparing(QuotationStatusEventResponse::getCreatedAt))
                 .toList();
+    }
+
+    /**
+     * A free-standing image/PDF either side can send at any time - unlike
+     * every other quotation action, this deliberately never touches
+     * Quotation#status/#version or calls recordStatusChange at all (see
+     * QuotationAttachment's javadoc). Allowed regardless of the quotation's
+     * current status, including terminal ones (BOOKED/DECLINED/CANCELLED) -
+     * there's no state-machine coupling to protect here.
+     */
+    @Transactional
+    public void addAttachment(String userEmail, Long quotationId, MultipartFile file, String message) {
+        User requester = requireUser(userEmail);
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new IllegalStateException("Quotation not found: " + quotationId));
+        boolean isParticipant = quotation.getVendorUser().getId().equals(requester.getId())
+                || quotation.getPlannerUser().getId().equals(requester.getId());
+        if (!isParticipant) {
+            throw new IllegalStateException("Quotation does not belong to the authenticated user");
+        }
+        if (!ALLOWED_ATTACHMENT_TYPES.contains(file.getContentType())) {
+            throw new InvalidFileTypeException("Only PNG, JPEG, or PDF files are accepted");
+        }
+
+        String key = s3UploadService
+                .upload(file, "quotations/" + quotation.getId() + "/attachments", S3UploadService.Visibility.PRIVATE)
+                .key();
+        QuotationAttachmentFileType fileType = "application/pdf".equals(file.getContentType())
+                ? QuotationAttachmentFileType.PDF
+                : QuotationAttachmentFileType.IMAGE;
+        quotationAttachmentRepository.save(QuotationAttachment.builder()
+                .quotation(quotation)
+                .uploadedBy(requester)
+                .fileKey(key)
+                .fileType(fileType)
+                .message(message)
+                .build());
+
+        User other = quotation.getVendorUser().getId().equals(requester.getId())
+                ? quotation.getPlannerUser()
+                : quotation.getVendorUser();
+        notificationService.notify(other, NotificationType.QUOTATION_ATTACHMENT,
+                "New attachment",
+                displayName(requester) + " sent an attachment",
+                "QUOTATION", quotation.getId());
     }
 
     private Quotation requirePlannerOwnedQuotation(User planner, Long quotationId) {
@@ -568,6 +645,7 @@ public class QuotationService {
                         .toList();
         return QuotationStatusEventResponse.builder()
                 .id(event.getId())
+                .entryType(HistoryEntryType.STATUS_CHANGE)
                 .fromStatus(event.getFromStatus())
                 .toStatus(event.getToStatus())
                 .changedByUserId(event.getChangedBy().getId())
@@ -581,6 +659,26 @@ public class QuotationService {
                 .paymentScreenshotUrl(s3UploadService.presignedUrl(event.getPaymentScreenshotKey(), FILE_URL_TTL))
                 .invoiceUrl(s3UploadService.presignedUrl(event.getInvoiceKey(), FILE_URL_TTL))
                 .createdAt(event.getCreatedAt())
+                .build();
+    }
+
+    // version has no real meaning for a free-standing attachment (it never
+    // caused a negotiation round), but carrying the quotation's current
+    // version through keeps the timeline's "v2"-style labeling consistent
+    // for every row, matching how the template already renders it.
+    private QuotationStatusEventResponse toAttachmentResponse(
+            QuotationAttachment attachment, Long vendorUserId, Integer quotationVersion) {
+        return QuotationStatusEventResponse.builder()
+                .id(attachment.getId())
+                .entryType(HistoryEntryType.ATTACHMENT)
+                .changedByUserId(attachment.getUploadedBy().getId())
+                .changedByName(historyChangedByName(attachment.getUploadedBy(), vendorUserId))
+                .reason(attachment.getMessage())
+                .version(quotationVersion)
+                .packageNames(List.of())
+                .attachmentUrl(s3UploadService.presignedUrl(attachment.getFileKey(), FILE_URL_TTL))
+                .attachmentFileType(attachment.getFileType().name())
+                .createdAt(attachment.getCreatedAt())
                 .build();
     }
 
@@ -635,6 +733,47 @@ public class QuotationService {
         return user.getEmail();
     }
 
+    /**
+     * Validates and uploads an optional set of reference/supplementary
+     * images (planner's request or vendor's response - see
+     * QuotationImageSource), each persisted as its own QuotationImage row
+     * rather than snapshotted per version the way pdfKey is - they belong
+     * to the quotation as a whole. A null/empty list is always fine (the
+     * whole feature is optional); anything present is validated the same
+     * way every other image-upload feature in this app already is.
+     */
+    private void validateAndUploadImages(Quotation quotation, List<MultipartFile> images, QuotationImageSource source) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+        // Reference images can now arrive from two points (the initial
+        // request and any later revision request), and response images
+        // similarly from an initial response plus every revision response -
+        // this has to check what's already on file for this side, not just
+        // the size of the current batch, or five-at-a-time across several
+        // calls could sail past the real per-side cap.
+        int limit = systemSettingService.getInt(SystemSettingKey.QUOTATION_IMAGE_LIMIT);
+        long existingCount = quotationImageRepository.countByQuotationIdAndSource(quotation.getId(), source);
+        if (existingCount + images.size() > limit) {
+            throw new TooManyAttachmentsException("You can attach at most " + limit + " images");
+        }
+        String keyPrefix = "quotations/" + quotation.getId() + "/" + source.name().toLowerCase();
+        for (MultipartFile image : images) {
+            if (image == null || image.isEmpty()) {
+                continue;
+            }
+            if (!ALLOWED_IMAGE_TYPES.contains(image.getContentType())) {
+                throw new InvalidFileTypeException("Only PNG or JPEG images are accepted");
+            }
+            String key = s3UploadService.upload(image, keyPrefix, S3UploadService.Visibility.PRIVATE).key();
+            quotationImageRepository.save(QuotationImage.builder()
+                    .quotation(quotation)
+                    .imageKey(key)
+                    .source(source)
+                    .build());
+        }
+    }
+
     private QuotationResponse toResponse(Quotation quotation) {
         VendorProfile vendorProfile = vendorProfileRepository.findByUserId(quotation.getVendorUser().getId()).orElse(null);
         List<String> packageNames = quotation.getPackageIds().isEmpty()
@@ -668,6 +807,14 @@ public class QuotationService {
                 .packageIds(quotation.getPackageIds())
                 .packageNames(packageNames)
                 .declinedAt(quotation.getDeclinedAt())
+                .referenceImageUrls(imageUrls(quotation.getId(), QuotationImageSource.REQUEST))
+                .responseImageUrls(imageUrls(quotation.getId(), QuotationImageSource.RESPONSE))
                 .build();
+    }
+
+    private List<String> imageUrls(Long quotationId, QuotationImageSource source) {
+        return quotationImageRepository.findByQuotationIdAndSourceOrderByCreatedAtAsc(quotationId, source).stream()
+                .map(image -> s3UploadService.presignedUrl(image.getImageKey(), FILE_URL_TTL))
+                .toList();
     }
 }

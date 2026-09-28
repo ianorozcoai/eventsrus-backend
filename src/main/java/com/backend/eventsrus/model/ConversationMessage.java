@@ -47,6 +47,10 @@ public class ConversationMessage {
     @Column(name = "read_at")
     private Instant readAt;
 
+    /** Private-bucket S3 key, retrieved via presigned URL - same convention as SupportTicketMessage#attachmentKey. */
+    @Column(name = "attachment_key")
+    private String attachmentKey;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

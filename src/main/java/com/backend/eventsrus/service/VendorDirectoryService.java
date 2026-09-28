@@ -3,7 +3,9 @@ package com.backend.eventsrus.service;
 import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.dto.VendorPackageResponse;
 import com.backend.eventsrus.dto.VendorPublicProfileResponse;
+import com.backend.eventsrus.model.VendorImageTag;
 import com.backend.eventsrus.model.VendorProfile;
+import com.backend.eventsrus.repository.VendorImageTagRepository;
 import com.backend.eventsrus.repository.VendorPackageRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
@@ -25,6 +27,7 @@ public class VendorDirectoryService {
     private final VendorLegalDocumentService vendorLegalDocumentService;
     private final VendorPackageImageService vendorPackageImageService;
     private final VendorGalleryPhotoService vendorGalleryPhotoService;
+    private final VendorImageTagRepository vendorImageTagRepository;
     private final ReviewService reviewService;
 
     @Transactional(readOnly = true)
@@ -72,6 +75,16 @@ public class VendorDirectoryService {
                 .sorted(Comparator.comparing(VendorPackageImageResponse::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
 
+        // Every tag the vendor has created - not just ones currently applied
+        // to a visible photo. A freshly-created tag with no photos tagged
+        // yet still gets its own storefront tab (showing an empty state,
+        // same as any other tabbed list in this app with a genuinely empty
+        // bucket) - the vendor asked for tabs to reflect what they've
+        // created, not just what's already in use.
+        var availableImageTags = vendorImageTagRepository.findByVendorProfileIdOrderByNameAsc(profile.getId()).stream()
+                .map(VendorImageTag::getName)
+                .toList();
+
         return VendorPublicProfileResponse.builder()
                 .vendorUserId(profile.getUser().getId())
                 .businessName(profile.getBusinessName())
@@ -107,6 +120,7 @@ public class VendorDirectoryService {
                 // the storefront's "Verified Vendor" badge appears.
                 .identityVerified(profile.isVerified())
                 .galleryImages(galleryImages)
+                .availableImageTags(availableImageTags)
                 .reviews(reviewService.listPublic(vendorUserId))
                 .averageRating(ratings.averageRating())
                 .reviewCount(ratings.reviewCount())

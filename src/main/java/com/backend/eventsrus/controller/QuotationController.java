@@ -3,7 +3,6 @@ package com.backend.eventsrus.controller;
 import com.backend.eventsrus.dto.PaymentRejectionRequest;
 import com.backend.eventsrus.dto.QuotationRequest;
 import com.backend.eventsrus.dto.QuotationResponse;
-import com.backend.eventsrus.dto.QuotationRevisionRequest;
 import com.backend.eventsrus.dto.QuotationStatusEventResponse;
 import com.backend.eventsrus.enums.PaymentType;
 import com.backend.eventsrus.service.BadgeService;
@@ -43,7 +42,14 @@ public class QuotationController {
         badgeService.markVendorQuotationsSeen(authentication.getName());
     }
 
-    @PostMapping("/api/v1/events/{eventId}/vendors/{vendorUserId}/quotations")
+    // JSON-body version - kept exactly as it was for eventsrus-ui (Flutter),
+    // which still POSTs a plain JSON body here (no multipart support added
+    // there). Delegates with referenceImages=null. See requestQuotationWithImages
+    // below for the web app's multipart version of this same URL - Spring
+    // dispatches between the two by request Content-Type, so both clients
+    // keep working unmodified.
+    @PostMapping(path = "/api/v1/events/{eventId}/vendors/{vendorUserId}/quotations",
+            consumes = "application/json")
     public QuotationResponse requestQuotation(
             @PathVariable Long eventId,
             @PathVariable Long vendorUserId,
@@ -51,7 +57,24 @@ public class QuotationController {
             Authentication authentication) {
         return quotationService.requestQuotation(
                 authentication.getName(), eventId, vendorUserId, request.getTargetDate(), request.getMessage(),
-                request.getPackageIds());
+                request.getPackageIds(), null);
+    }
+
+    // Web app's version of the same endpoint - optional reference images
+    // alongside the same fields, sent as multipart since a file can't ride
+    // inside a JSON body.
+    @PostMapping(path = "/api/v1/events/{eventId}/vendors/{vendorUserId}/quotations",
+            consumes = "multipart/form-data")
+    public QuotationResponse requestQuotationWithImages(
+            @PathVariable Long eventId,
+            @PathVariable Long vendorUserId,
+            @RequestParam(required = false) LocalDate targetDate,
+            @RequestParam String message,
+            @RequestParam(required = false) List<Long> packageIds,
+            @RequestPart(required = false) List<MultipartFile> referenceImages,
+            Authentication authentication) {
+        return quotationService.requestQuotation(
+                authentication.getName(), eventId, vendorUserId, targetDate, message, packageIds, referenceImages);
     }
 
     // A vendor starting a brand-new quote directly from a chat thread - see
@@ -65,9 +88,10 @@ public class QuotationController {
             @RequestParam(required = false) List<Long> packageIds,
             @RequestPart MultipartFile pdf,
             @RequestParam BigDecimal quotedAmount,
+            @RequestPart(required = false) List<MultipartFile> images,
             Authentication authentication) {
         return quotationService.createFromChat(
-                authentication.getName(), eventId, targetDate, message, packageIds, pdf, quotedAmount);
+                authentication.getName(), eventId, targetDate, message, packageIds, pdf, quotedAmount, images);
     }
 
     @GetMapping("/api/v1/events/{eventId}/quotations")
@@ -89,8 +113,9 @@ public class QuotationController {
     public QuotationResponse respondWithPdf(
             @PathVariable Long quotationId, @RequestPart MultipartFile pdf,
             @RequestParam(required = false) String message, @RequestParam BigDecimal quotedAmount,
+            @RequestPart(required = false) List<MultipartFile> images,
             Authentication authentication) {
-        return quotationService.respondWithPdf(authentication.getName(), quotationId, pdf, message, quotedAmount);
+        return quotationService.respondWithPdf(authentication.getName(), quotationId, pdf, message, quotedAmount, images);
     }
 
     @PutMapping("/api/v1/quotations/{quotationId}/decline")
@@ -98,11 +123,20 @@ public class QuotationController {
         return quotationService.declineQuotation(authentication.getName(), quotationId);
     }
 
-    @PostMapping("/api/v1/quotations/{quotationId}/revise")
+    // Multipart, not JSON - eventsrus-ui (Flutter) has no caller for this
+    // endpoint at all, so unlike requestQuotation/respondWithPdf there's no
+    // existing JSON client to keep working; converting outright (rather than
+    // adding a JSON+multipart sibling pair) is safe here.
+    @PostMapping(path = "/api/v1/quotations/{quotationId}/revise", consumes = "multipart/form-data")
     public QuotationResponse revise(
-            @PathVariable Long quotationId, @Valid @RequestBody QuotationRevisionRequest request, Authentication authentication) {
+            @PathVariable Long quotationId,
+            @RequestParam(required = false) LocalDate targetDate,
+            @RequestParam String message,
+            @RequestParam(required = false) List<Long> packageIds,
+            @RequestPart(required = false) List<MultipartFile> images,
+            Authentication authentication) {
         return quotationService.requestRevision(
-                authentication.getName(), quotationId, request.getTargetDate(), request.getMessage(), request.getPackageIds());
+                authentication.getName(), quotationId, targetDate, message, packageIds, images);
     }
 
     // Planner accepts a QUOTE_SENT/REVISION_SENT quote - screenshot is
@@ -148,5 +182,16 @@ public class QuotationController {
     @GetMapping("/api/v1/quotations/{quotationId}/history")
     public List<QuotationStatusEventResponse> history(@PathVariable Long quotationId, Authentication authentication) {
         return quotationService.history(authentication.getName(), quotationId);
+    }
+
+    // A free-standing image/PDF either side can send at any time, with no
+    // status change - see QuotationService#addAttachment. Void response:
+    // this doesn't affect the quotation's own state, so there's nothing to
+    // hand back beyond the 200 itself; the web app just re-fetches history.
+    @PostMapping(path = "/api/v1/quotations/{quotationId}/attachments", consumes = "multipart/form-data")
+    public void addAttachment(
+            @PathVariable Long quotationId, @RequestPart MultipartFile file,
+            @RequestParam(required = false) String message, Authentication authentication) {
+        quotationService.addAttachment(authentication.getName(), quotationId, file, message);
     }
 }
