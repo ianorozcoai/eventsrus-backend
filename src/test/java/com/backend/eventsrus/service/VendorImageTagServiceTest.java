@@ -229,7 +229,7 @@ class VendorImageTagServiceTest {
             when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR));
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
             when(vendorGalleryPhotoRepository.findByVendorProfileIdOrderByCreatedAtDesc(9L)).thenReturn(List.of(photo));
-            when(vendorPackageImageRepository.findByVendorPackage_VendorProfile_IdOrderByCreatedAtDesc(9L))
+            when(vendorPackageImageRepository.findByVendorPackage_VendorProfile_IdAndVendorPackage_ActiveTrueOrderByCreatedAtDesc(9L))
                     .thenReturn(List.of(image));
 
             var result = vendorImageTagService.listAllTaggableImages("vendor@example.com");
@@ -238,6 +238,24 @@ class VendorImageTagServiceTest {
             assertThat(result.get(0).getSource()).isEqualTo(ImageSource.GALLERY);
             assertThat(result.get(1).getSource()).isEqualTo(ImageSource.PACKAGE);
             assertThat(result.get(1).getPackageName()).isEqualTo("Premium");
+        }
+
+        // A discontinued package's photos are invisible on the storefront -
+        // the repository query itself filters them out (VendorPackage.active),
+        // so this just documents that this service asks for the
+        // active-only variant, not the unfiltered one.
+        @Test
+        void doesNotAskForImagesFromDiscontinuedPackages() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
+            when(vendorGalleryPhotoRepository.findByVendorProfileIdOrderByCreatedAtDesc(9L)).thenReturn(List.of());
+            when(vendorPackageImageRepository.findByVendorPackage_VendorProfile_IdAndVendorPackage_ActiveTrueOrderByCreatedAtDesc(9L))
+                    .thenReturn(List.of());
+
+            var result = vendorImageTagService.listAllTaggableImages("vendor@example.com");
+
+            assertThat(result).isEmpty();
+            verify(vendorPackageImageRepository, never()).findByVendorPackage_VendorProfile_IdOrderByCreatedAtDesc(any());
         }
     }
 }

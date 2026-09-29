@@ -97,7 +97,13 @@ public class VendorImageTagService {
                 .toList();
     }
 
-    /** Every image a vendor has - standalone gallery photos and every package's photos - combined for the Gallery Management page. */
+    /**
+     * Every image a vendor has - standalone gallery photos and every ACTIVE
+     * package's photos - combined for the Gallery Management page. A
+     * discontinued package's photos are excluded (same reasoning as the
+     * repository query) rather than shown alongside a tag that would then
+     * look broken on the storefront.
+     */
     @Transactional(readOnly = true)
     public List<VendorTaggedImageResponse> listAllTaggableImages(String vendorEmail) {
         VendorProfile profile = requireProfile(vendorEmail);
@@ -106,7 +112,7 @@ public class VendorImageTagService {
                 .findByVendorProfileIdOrderByCreatedAtDesc(profile.getId()).stream()
                 .map(this::toTaggedImageResponse);
         Stream<VendorTaggedImageResponse> packageImages = vendorPackageImageRepository
-                .findByVendorPackage_VendorProfile_IdOrderByCreatedAtDesc(profile.getId()).stream()
+                .findByVendorPackage_VendorProfile_IdAndVendorPackage_ActiveTrueOrderByCreatedAtDesc(profile.getId()).stream()
                 .map(this::toTaggedImageResponse);
 
         return Stream.concat(galleryPhotos, packageImages)
