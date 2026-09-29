@@ -27,4 +27,17 @@ public interface VendorProfileRepository extends JpaRepository<VendorProfile, Lo
             + "where bt = :businessType and (oa = :area or oa = 'Entire Philippines')")
     List<VendorProfile> findByBusinessTypeAndOperatingArea(
             @Param("businessType") BusinessType businessType, @Param("area") String area);
+
+    /**
+     * Real (non-fake-account) vendor count per business type, for the admin
+     * Dashboard's breakdown - see AdminDashboardController. A vendor with
+     * several business types is counted once per type, not once overall
+     * (matches how BusinessType filtering already works everywhere else in
+     * the app - a multi-type vendor genuinely belongs in each bucket). Only
+     * returns rows for types at least one real vendor actually has -
+     * AdminDashboardController fills in zero for every other BusinessType.
+     */
+    @Query("select bt, count(vp) from VendorProfile vp join vp.businessTypes bt "
+            + "where vp.user.fakeAccount = false group by bt")
+    List<Object[]> countRealVendorsByBusinessType();
 }
