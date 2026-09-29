@@ -78,6 +78,7 @@ public class QuotationService {
     private final QuotationImageRepository quotationImageRepository;
     private final QuotationAttachmentRepository quotationAttachmentRepository;
     private final SystemSettingService systemSettingService;
+    private final GoogleCalendarService googleCalendarService;
 
     @Transactional
     public QuotationResponse requestQuotation(
@@ -481,6 +482,7 @@ public class QuotationService {
                 .paymentType(paymentType)
                 .confirmationMessage(confirmationMessage)
                 .build());
+        googleCalendarService.onBookingConfirmed(booking);
         bookingStatusEventRepository.save(BookingStatusEvent.builder()
                 .booking(booking)
                 .fromStatus(null)

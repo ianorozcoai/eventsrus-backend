@@ -120,4 +120,11 @@ public class Booking extends BaseEntity {
     // The vendor's confirmation message entered when accepting the booking - same call as paymentType above.
     @Column(name = "confirmation_message", columnDefinition = "TEXT")
     private String confirmationMessage;
+
+    // Set once GoogleCalendarService successfully creates an event on the
+    // vendor's calendar (only if they've connected one - see
+    // GoogleCalendarConnection) - null otherwise. Lets a later
+    // cancellation update this exact event instead of creating a second one.
+    @Column(name = "google_calendar_event_id")
+    private String googleCalendarEventId;
 }

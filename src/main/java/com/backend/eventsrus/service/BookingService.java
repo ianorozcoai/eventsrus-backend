@@ -52,6 +52,7 @@ public class BookingService {
     private final S3UploadService s3UploadService;
     private final BookingStatusEventRepository bookingStatusEventRepository;
     private final VendorPlanService vendorPlanService;
+    private final GoogleCalendarService googleCalendarService;
     private final ReviewService reviewService;
     private final QuotationService quotationService;
     private final BookingAmendmentRepository bookingAmendmentRepository;
@@ -197,6 +198,7 @@ public class BookingService {
         booking.setStatus(BookingStatus.BOOKED);
         booking.setPaymentAcknowledgedAt(Instant.now());
         bookingRepository.save(booking);
+        googleCalendarService.onBookingConfirmed(booking);
 
         notificationService.notify(booking.getPlannerUser(), NotificationType.BOOKING_CONFIRMED,
                 "Booking confirmed",
@@ -260,6 +262,7 @@ public class BookingService {
         booking.setCancellationReason(reason);
         booking.setCancelledBy(requester);
         bookingRepository.save(booking);
+        googleCalendarService.onBookingCancelled(booking);
 
         User otherParty = booking.getVendorUser().getId().equals(requester.getId())
                 ? booking.getPlannerUser()

@@ -89,6 +89,8 @@ class QuotationServiceTest {
     private com.backend.eventsrus.repository.QuotationAttachmentRepository quotationAttachmentRepository;
     @Mock
     private SystemSettingService systemSettingService;
+    @Mock
+    private GoogleCalendarService googleCalendarService;
 
     private QuotationService quotationService;
 
@@ -103,7 +105,7 @@ class QuotationServiceTest {
                 quotationRepository, eventRepository, userRepository, vendorProfileRepository,
                 vendorPackageRepository, notificationService, s3UploadService, quotationStatusEventRepository,
                 bookingRepository, bookingStatusEventRepository, vendorPlanService, quotationImageRepository,
-                quotationAttachmentRepository, systemSettingService);
+                quotationAttachmentRepository, systemSettingService, googleCalendarService);
     }
 
     private Quotation quotationAt(QuotationStatus status) {
