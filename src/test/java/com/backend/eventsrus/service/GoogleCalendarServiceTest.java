@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.backend.eventsrus.enums.BookingStatus;
 import com.backend.eventsrus.model.Booking;
 import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.GoogleCalendarConnection;
@@ -18,6 +19,7 @@ import com.backend.eventsrus.repository.GoogleCalendarConnectionRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -59,6 +61,97 @@ class GoogleCalendarServiceTest {
         User planner = User.builder().id(2L).email("planner@example.com").firstName("Jane").build();
         return Booking.builder().id(42L).event(event).vendorUser(vendorUser).plannerUser(planner)
                 .eventDatetime(Instant.parse("2026-12-01T00:00:00Z")).build();
+    }
+
+    private Booking pastBookingFor(User vendorUser) {
+        Event event = Event.builder().id(6L).name("Already Happened").build();
+        User planner = User.builder().id(2L).email("planner@example.com").firstName("Jane").build();
+        return Booking.builder().id(43L).event(event).vendorUser(vendorUser).plannerUser(planner)
+                .eventDatetime(Instant.parse("2020-01-01T00:00:00Z")).build();
+    }
+
+    @Nested
+    class SaveConnection {
+
+        @Test
+        void backfillsAFutureBookedBookingThatHasNoEventYet() {
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR_USER));
+            when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
+            when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
+            when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+
+            Booking booking = bookingFor(VENDOR_USER);
+            when(bookingRepository.findByVendorUserIdAndStatus(1L, BookingStatus.BOOKED)).thenReturn(List.of(booking));
+            when(googleCalendarClient.createEvent(eq("access-token"), eq("primary"), anyString(), anyString(), any()))
+                    .thenReturn("google-event-id-999");
+
+            googleCalendarService.saveConnection("vendor@example.com", "raw-refresh-token", "primary");
+
+            assertThat(booking.getGoogleCalendarEventId()).isEqualTo("google-event-id-999");
+            verify(bookingRepository).save(booking);
+        }
+
+        @Test
+        void doesNotRecreateAnEventStillLiveOnTheCalendar() {
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR_USER));
+            when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
+            when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
+            when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+
+            Booking booking = bookingFor(VENDOR_USER);
+            booking.setGoogleCalendarEventId("google-event-id-already-there");
+            when(bookingRepository.findByVendorUserIdAndStatus(1L, BookingStatus.BOOKED)).thenReturn(List.of(booking));
+            when(googleCalendarClient.eventExists("access-token", "primary", "google-event-id-already-there"))
+                    .thenReturn(true);
+
+            googleCalendarService.saveConnection("vendor@example.com", "raw-refresh-token", "primary");
+
+            verify(googleCalendarClient, never()).createEvent(any(), any(), any(), any(), any());
+            verify(bookingRepository, never()).save(any());
+        }
+
+        @Test
+        void recreatesAnEventTheVendorDeletedDirectlyFromGoogleCalendar() {
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR_USER));
+            when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
+            when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
+            when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+
+            Booking booking = bookingFor(VENDOR_USER);
+            booking.setGoogleCalendarEventId("google-event-id-deleted");
+            when(bookingRepository.findByVendorUserIdAndStatus(1L, BookingStatus.BOOKED)).thenReturn(List.of(booking));
+            when(googleCalendarClient.eventExists("access-token", "primary", "google-event-id-deleted"))
+                    .thenReturn(false);
+            when(googleCalendarClient.createEvent(eq("access-token"), eq("primary"), anyString(), anyString(), any()))
+                    .thenReturn("google-event-id-recreated");
+
+            googleCalendarService.saveConnection("vendor@example.com", "raw-refresh-token", "primary");
+
+            assertThat(booking.getGoogleCalendarEventId()).isEqualTo("google-event-id-recreated");
+            verify(bookingRepository).save(booking);
+        }
+
+        @Test
+        void skipsBookingsWhoseEventAlreadyHappened() {
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(VENDOR_USER));
+            when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
+            when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
+
+            when(bookingRepository.findByVendorUserIdAndStatus(1L, BookingStatus.BOOKED))
+                    .thenReturn(List.of(pastBookingFor(VENDOR_USER)));
+
+            googleCalendarService.saveConnection("vendor@example.com", "raw-refresh-token", "primary");
+
+            verify(googleCalendarClient, never()).mintAccessToken(any());
+            verify(googleCalendarClient, never()).createEvent(any(), any(), any(), any(), any());
+        }
     }
 
     @Nested

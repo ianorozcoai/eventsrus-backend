@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -90,6 +91,31 @@ public class GoogleCalendarClient {
             throw e;
         } catch (Exception e) {
             throw new GoogleCalendarApiException("Failed to create Google Calendar event", e);
+        }
+    }
+
+    /**
+     * Whether an event created earlier is still live on the calendar - used
+     * by GoogleCalendarService's connect/reconnect backfill to decide
+     * whether a future booking's already-stored event id still needs
+     * recreating. False for a 404 (fully purged) or a soft-deleted event
+     * (Google marks an event "cancelled" rather than removing it outright
+     * for a while after a vendor deletes it from their calendar UI), both
+     * of which mean nothing is actually left on the calendar for it.
+     */
+    public boolean eventExists(String accessToken, String calendarId, String eventId) {
+        try {
+            Map<String, Object> response = restClient.get()
+                    .uri(CALENDAR_API_BASE + "/calendars/{calendarId}/events/{eventId}", calendarId, eventId)
+                    .headers(h -> h.setBearerAuth(accessToken))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            return response != null && !"cancelled".equals(response.get("status"));
+        } catch (HttpClientErrorException.NotFound e) {
+            return false;
+        } catch (Exception e) {
+            throw new GoogleCalendarApiException("Failed to check Google Calendar event", e);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.dto.GoogleCalendarStatusResponse;
+import com.backend.eventsrus.enums.BookingStatus;
 import com.backend.eventsrus.model.Booking;
 import com.backend.eventsrus.model.GoogleCalendarConnection;
 import com.backend.eventsrus.model.User;
@@ -10,6 +11,7 @@ import com.backend.eventsrus.repository.GoogleCalendarConnectionRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,13 @@ import org.springframework.transaction.annotation.Transactional;
  * genuine Calendar API failure (revoked access, Google outage) is logged
  * and swallowed rather than surfaced, so a calendar hiccup can never block
  * a real booking confirmation or cancellation.
+ *
+ * saveConnection() also backfills every still-upcoming BOOKED booking onto
+ * the calendar (see backfillFutureBookings) every time it runs - both the
+ * very first connect and any later reconnect - so a booking confirmed
+ * before the vendor connected, or an event the vendor deleted directly from
+ * Google Calendar, ends up back on the calendar without the vendor having
+ * to do anything booking-specific to trigger it.
  */
 @Service
 @RequiredArgsConstructor
@@ -54,6 +63,7 @@ public class GoogleCalendarService {
         connection.setGoogleCalendarId(googleCalendarId);
         connection.setConnectedAt(Instant.now());
         connectionRepository.save(connection);
+        backfillFutureBookings(profile, connection);
     }
 
     @Transactional
@@ -113,6 +123,53 @@ public class GoogleCalendarService {
                     "CANCELLED: " + summaryFor(booking));
         } catch (Exception e) {
             log.warn("Google Calendar sync failed for booking {} (cancelled) - continuing without it", booking.getId(), e);
+        }
+    }
+
+    /**
+     * Pushes every still-upcoming BOOKED booking onto the vendor's calendar
+     * right after they connect or reconnect - covers both a booking that
+     * was confirmed before the vendor ever connected a calendar, and one
+     * whose event the vendor removed directly from Google Calendar (a
+     * booking's googleCalendarEventId only ever gets cleared by us on a
+     * fresh create here, never on disconnect, so a stale id from before a
+     * manual deletion is exactly what eventExists() below catches). Only
+     * ever considers bookings with a future eventDatetime - a past booking
+     * already happened, so there's nothing useful to add to the calendar
+     * for it. No-throw, same convention as onBookingConfirmed/
+     * onBookingCancelled: a Calendar API hiccup here must never fail the
+     * connect flow that triggered it, and one bad booking must never stop
+     * the rest of the backfill.
+     */
+    private void backfillFutureBookings(VendorProfile profile, GoogleCalendarConnection connection) {
+        List<Booking> futureBookings = bookingRepository.findByVendorUserIdAndStatus(profile.getUser().getId(), BookingStatus.BOOKED)
+                .stream()
+                .filter(b -> b.getEventDatetime() != null && b.getEventDatetime().isAfter(Instant.now()))
+                .toList();
+        if (futureBookings.isEmpty()) {
+            return;
+        }
+        try {
+            String accessToken = googleCalendarClient.mintAccessToken(
+                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()));
+            for (Booking booking : futureBookings) {
+                try {
+                    boolean alreadyOnCalendar = booking.getGoogleCalendarEventId() != null
+                            && googleCalendarClient.eventExists(
+                                    accessToken, connection.getGoogleCalendarId(), booking.getGoogleCalendarEventId());
+                    if (!alreadyOnCalendar) {
+                        String eventId = googleCalendarClient.createEvent(
+                                accessToken, connection.getGoogleCalendarId(), summaryFor(booking),
+                                descriptionFor(booking), booking.getEventDatetime());
+                        booking.setGoogleCalendarEventId(eventId);
+                        bookingRepository.save(booking);
+                    }
+                } catch (Exception e) {
+                    log.warn("Google Calendar backfill failed for booking {} - continuing with the rest", booking.getId(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Google Calendar backfill failed to mint an access token for vendor profile {} - skipping", profile.getId(), e);
         }
     }
 
