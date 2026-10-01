@@ -9,9 +9,13 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -60,4 +64,14 @@ public class VendorPackage extends BaseEntity {
 
     @Column(nullable = false)
     private boolean active;
+
+    // Vendor-defined groupings (e.g. "Wedding", "Birthday") - a package can
+    // belong to several, same shape as VendorPackageImage#tags. Surfaced on
+    // the storefront as filter tabs - see VendorDirectoryService.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "vendor_package_group_memberships",
+            joinColumns = @JoinColumn(name = "package_id"),
+            inverseJoinColumns = @JoinColumn(name = "group_id"))
+    @Builder.Default
+    private Set<VendorPackageGroup> groups = new HashSet<>();
 }

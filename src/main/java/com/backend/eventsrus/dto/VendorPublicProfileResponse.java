@@ -52,6 +52,12 @@ public class VendorPublicProfileResponse {
     // web app renders no filter tabs at all in that case.
     private List<String> availableImageTags;
 
+    // Every group name the vendor has created for their packages (see
+    // VendorDirectoryService#getPublicProfile), sorted by name - not just
+    // ones currently applied to a package. Same "empty group still gets a
+    // tab" convention as availableImageTags above.
+    private List<String> availableGroups;
+
     // Real planner reviews (hidden ones excluded), newest first, plus the
     // aggregate. averageRating is null when there are no reviews yet.
     private List<ReviewResponse> reviews;

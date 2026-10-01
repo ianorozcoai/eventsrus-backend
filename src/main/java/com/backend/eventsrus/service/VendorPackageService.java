@@ -9,6 +9,7 @@ import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorPackageRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
+import com.backend.eventsrus.model.VendorPackageGroup;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -129,6 +130,7 @@ public class VendorPackageService {
                 .maxPrice(pkg.getMaxPrice())
                 .active(pkg.isActive())
                 .images(images)
+                .groups(pkg.getGroups().stream().map(VendorPackageGroup::getName).sorted().toList())
                 .build();
     }
 }

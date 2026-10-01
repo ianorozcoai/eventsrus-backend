@@ -25,4 +25,7 @@ public class VendorPackageResponse {
     // Combined across every package a vendor has, these are also the
     // storefront's Gallery section - see VendorDirectoryService.
     private List<VendorPackageImageResponse> images;
+    // Vendor-defined groupings (e.g. "Wedding", "Birthday") - surfaced as
+    // storefront filter tabs, see VendorDirectoryService#getPublicProfile.
+    private List<String> groups;
 }

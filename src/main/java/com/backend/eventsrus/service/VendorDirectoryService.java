@@ -4,8 +4,10 @@ import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.dto.VendorPackageResponse;
 import com.backend.eventsrus.dto.VendorPublicProfileResponse;
 import com.backend.eventsrus.model.VendorImageTag;
+import com.backend.eventsrus.model.VendorPackageGroup;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.VendorImageTagRepository;
+import com.backend.eventsrus.repository.VendorPackageGroupRepository;
 import com.backend.eventsrus.repository.VendorPackageRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
@@ -28,6 +30,7 @@ public class VendorDirectoryService {
     private final VendorPackageImageService vendorPackageImageService;
     private final VendorGalleryPhotoService vendorGalleryPhotoService;
     private final VendorImageTagRepository vendorImageTagRepository;
+    private final VendorPackageGroupRepository vendorPackageGroupRepository;
     private final ReviewService reviewService;
 
     @Transactional(readOnly = true)
@@ -60,6 +63,7 @@ public class VendorDirectoryService {
                         .maxPrice(p.getMaxPrice())
                         .active(p.isActive())
                         .images(imagesByPackageId.getOrDefault(p.getId(), List.of()))
+                        .groups(p.getGroups().stream().map(VendorPackageGroup::getName).sorted().toList())
                         .build())
                 .toList();
 
@@ -83,6 +87,12 @@ public class VendorDirectoryService {
         // created, not just what's already in use.
         var availableImageTags = vendorImageTagRepository.findByVendorProfileIdOrderByNameAsc(profile.getId()).stream()
                 .map(VendorImageTag::getName)
+                .toList();
+
+        // Every group the vendor has created - same "shown even if nothing's
+        // in it yet" convention as availableImageTags above.
+        var availableGroups = vendorPackageGroupRepository.findByVendorProfileIdOrderByNameAsc(profile.getId()).stream()
+                .map(VendorPackageGroup::getName)
                 .toList();
 
         return VendorPublicProfileResponse.builder()
@@ -121,6 +131,7 @@ public class VendorDirectoryService {
                 .identityVerified(profile.isVerified())
                 .galleryImages(galleryImages)
                 .availableImageTags(availableImageTags)
+                .availableGroups(availableGroups)
                 .reviews(reviewService.listPublic(vendorUserId))
                 .averageRating(ratings.averageRating())
                 .reviewCount(ratings.reviewCount())

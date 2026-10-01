@@ -2,6 +2,7 @@ package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.VendorPackageRequest;
 import com.backend.eventsrus.dto.VendorPackageResponse;
+import com.backend.eventsrus.service.VendorPackageGroupService;
 import com.backend.eventsrus.service.VendorPackageService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VendorPackageController {
 
     private final VendorPackageService vendorPackageService;
+    private final VendorPackageGroupService vendorPackageGroupService;
 
     @PostMapping
     public VendorPackageResponse create(@Valid @RequestBody VendorPackageRequest request, Authentication authentication) {
@@ -48,5 +50,11 @@ public class VendorPackageController {
     @DeleteMapping("/{packageId}")
     public void delete(@PathVariable Long packageId, Authentication authentication) {
         vendorPackageService.deletePackage(authentication.getName(), packageId);
+    }
+
+    @PutMapping("/{packageId}/groups")
+    public void setGroups(
+            @PathVariable Long packageId, @RequestBody List<Long> groupIds, Authentication authentication) {
+        vendorPackageGroupService.setPackageGroups(authentication.getName(), packageId, groupIds);
     }
 }
