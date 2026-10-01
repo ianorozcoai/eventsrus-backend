@@ -58,6 +58,12 @@ public class VendorPublicProfileResponse {
     // tab" convention as availableImageTags above.
     private List<String> availableGroups;
 
+    // As many social media links as the vendor has added, oldest first (see
+    // VendorSocialMediaLinkService) - includes one seeded from the legacy
+    // facebookPageUrl field below if the vendor had set one before ever
+    // adding a link of their own, so it naturally stays first.
+    private List<VendorSocialMediaLinkResponse> socialMediaLinks;
+
     // Real planner reviews (hidden ones excluded), newest first, plus the
     // aggregate. averageRating is null when there are no reviews yet.
     private List<ReviewResponse> reviews;

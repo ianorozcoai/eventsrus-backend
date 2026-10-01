@@ -4,11 +4,13 @@ import com.backend.eventsrus.dto.VendorPackageImageResponse;
 import com.backend.eventsrus.dto.VendorPackageResponse;
 import com.backend.eventsrus.dto.VendorPublicProfileResponse;
 import com.backend.eventsrus.model.VendorImageTag;
+import com.backend.eventsrus.dto.VendorSocialMediaLinkResponse;
 import com.backend.eventsrus.model.VendorPackageGroup;
 import com.backend.eventsrus.model.VendorProfile;
 import com.backend.eventsrus.repository.VendorImageTagRepository;
 import com.backend.eventsrus.repository.VendorPackageGroupRepository;
 import com.backend.eventsrus.repository.VendorPackageRepository;
+import com.backend.eventsrus.repository.VendorSocialMediaLinkRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import java.time.Instant;
 import java.util.Comparator;
@@ -31,6 +33,7 @@ public class VendorDirectoryService {
     private final VendorGalleryPhotoService vendorGalleryPhotoService;
     private final VendorImageTagRepository vendorImageTagRepository;
     private final VendorPackageGroupRepository vendorPackageGroupRepository;
+    private final VendorSocialMediaLinkRepository vendorSocialMediaLinkRepository;
     private final ReviewService reviewService;
 
     @Transactional(readOnly = true)
@@ -95,6 +98,14 @@ public class VendorDirectoryService {
                 .map(VendorPackageGroup::getName)
                 .toList();
 
+        var socialMediaLinks = vendorSocialMediaLinkRepository.findByVendorProfileIdOrderByCreatedAtAsc(profile.getId()).stream()
+                .map(link -> VendorSocialMediaLinkResponse.builder()
+                        .id(link.getId())
+                        .platform(link.getPlatform())
+                        .url(link.getUrl())
+                        .build())
+                .toList();
+
         return VendorPublicProfileResponse.builder()
                 .vendorUserId(profile.getUser().getId())
                 .businessName(profile.getBusinessName())
@@ -132,6 +143,7 @@ public class VendorDirectoryService {
                 .galleryImages(galleryImages)
                 .availableImageTags(availableImageTags)
                 .availableGroups(availableGroups)
+                .socialMediaLinks(socialMediaLinks)
                 .reviews(reviewService.listPublic(vendorUserId))
                 .averageRating(ratings.averageRating())
                 .reviewCount(ratings.reviewCount())

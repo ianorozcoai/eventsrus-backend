@@ -53,6 +53,8 @@ class UserServiceTest {
     @Mock
     private VendorLegalDocumentService vendorLegalDocumentService;
     @Mock
+    private VendorSocialMediaLinkService vendorSocialMediaLinkService;
+    @Mock
     private VendorBillingHistoryService vendorBillingHistoryService;
     @Mock
     private RecaptchaVerificationService recaptchaVerificationService;
@@ -84,6 +86,7 @@ class UserServiceTest {
                 vendorSubscriptionRepository,
                 s3UploadService,
                 vendorLegalDocumentService,
+                vendorSocialMediaLinkService,
                 vendorBillingHistoryService,
                 recaptchaVerificationService,
                 vendorReferralService,
@@ -269,6 +272,19 @@ class UserServiceTest {
 
             verify(vendorSubscriptionRepository, never()).save(any());
             verify(vendorBillingHistoryService, never()).recordFreeGrant(any(), any(), any(), any());
+        }
+
+        @Test
+        void seedsAFacebookSocialMediaLinkFromTheOnboardingFormsFacebookUrl() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            VendorOnboardingRequest request = requestWithPromoCode(null);
+            request.setFacebookPageUrl("https://facebook.com/testbusiness");
+
+            userService.becomeVendor("vendor@example.com", request, noFiles());
+
+            verify(vendorSocialMediaLinkService).seedFacebookLinkIfNeeded(any(), eq("https://facebook.com/testbusiness"));
         }
 
         @Test

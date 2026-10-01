@@ -56,6 +56,7 @@ public class UserService {
     private final VendorSubscriptionRepository vendorSubscriptionRepository;
     private final S3UploadService s3UploadService;
     private final VendorLegalDocumentService vendorLegalDocumentService;
+    private final VendorSocialMediaLinkService vendorSocialMediaLinkService;
     private final VendorBillingHistoryService vendorBillingHistoryService;
     private final RecaptchaVerificationService recaptchaVerificationService;
     private final VendorReferralService vendorReferralService;
@@ -209,6 +210,7 @@ public class UserService {
             profile.setReferralCode(vendorReferralService.generateUniqueReferralCode());
         }
         vendorProfileRepository.save(profile);
+        vendorSocialMediaLinkService.seedFacebookLinkIfNeeded(profile, request.getFacebookPageUrl());
 
         // Any number of business-registration documents can be attached at
         // onboarding now (DTI, SEC, Mayor's Permit, Barangay Clearance,
@@ -561,6 +563,7 @@ public class UserService {
         }
 
         vendorProfileRepository.save(profile);
+        vendorSocialMediaLinkService.seedFacebookLinkIfNeeded(profile, request.getFacebookPageUrl());
         return toSettingsResponse(profile);
     }
 
