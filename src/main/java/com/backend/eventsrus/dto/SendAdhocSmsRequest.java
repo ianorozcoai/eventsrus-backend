@@ -1,0 +1,18 @@
+package com.backend.eventsrus.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+public class SendAdhocSmsRequest {
+
+    @NotBlank
+    private String number;
+
+    @NotBlank
+    private String message;
+}

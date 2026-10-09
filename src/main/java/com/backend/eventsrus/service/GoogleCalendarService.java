@@ -2,6 +2,7 @@ package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.dto.GoogleCalendarStatusResponse;
 import com.backend.eventsrus.enums.BookingStatus;
+import com.backend.eventsrus.enums.GoogleOAuthClient;
 import com.backend.eventsrus.model.Booking;
 import com.backend.eventsrus.model.GoogleCalendarConnection;
 import com.backend.eventsrus.model.User;
@@ -56,12 +57,34 @@ public class GoogleCalendarService {
 
     @Transactional
     public void saveConnection(String vendorEmail, String refreshToken, String googleCalendarId) {
+        saveConnection(vendorEmail, refreshToken, googleCalendarId, GoogleOAuthClient.WEB);
+    }
+
+    /**
+     * eventsrus-ui's native connect flow (see
+     * GoogleCalendarApi#connectNative on mobile) - the app only ever hands
+     * this a PKCE authorization code, never a client secret, so the actual
+     * code-for-refresh-token exchange happens here, server-side, using the
+     * Desktop-app client's secret (GoogleCalendarClient#exchangeAuthorizationCode).
+     */
+    @Transactional
+    public void exchangeAuthorizationCode(String vendorEmail, String code, String codeVerifier, String redirectUri) {
+        String refreshToken = googleCalendarClient.exchangeAuthorizationCode(code, codeVerifier, redirectUri);
+        // "primary" is Google's own alias for the authenticated user's
+        // primary calendar - no separate calendars.list call needed to
+        // discover a real id, same as the web flow.
+        saveConnection(vendorEmail, refreshToken, "primary", GoogleOAuthClient.MOBILE_DESKTOP);
+    }
+
+    @Transactional
+    public void saveConnection(String vendorEmail, String refreshToken, String googleCalendarId, GoogleOAuthClient oauthClient) {
         VendorProfile profile = requireProfile(vendorEmail);
         GoogleCalendarConnection connection = connectionRepository.findByVendorProfileId(profile.getId())
                 .orElseGet(() -> GoogleCalendarConnection.builder().vendorProfile(profile).build());
         connection.setRefreshTokenEncrypted(tokenEncryptionService.encrypt(refreshToken));
         connection.setGoogleCalendarId(googleCalendarId);
         connection.setConnectedAt(Instant.now());
+        connection.setOauthClient(oauthClient);
         connectionRepository.save(connection);
         backfillFutureBookings(profile, connection);
     }
@@ -69,6 +92,21 @@ public class GoogleCalendarService {
     @Transactional
     public void disconnect(String vendorEmail) {
         VendorProfile profile = requireProfile(vendorEmail);
+        connectionRepository.findByVendorProfileId(profile.getId()).ifPresent(connection -> {
+            try {
+                googleCalendarClient.revokeToken(tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()));
+            } catch (Exception e) {
+                // The vendor's own "Disconnect" tap must always succeed even
+                // if Google's side fails (token already revoked, Google
+                // outage, ...) - forgetting our copy is the part that
+                // actually matters for "stop syncing new bookings"; a
+                // failed revoke just means Google's own permissions page
+                // keeps listing EventsRUs until the vendor removes it
+                // there themselves.
+                log.warn("Failed to revoke Google Calendar token for vendor profile {} - disconnecting locally anyway",
+                        profile.getId(), e);
+            }
+        });
         connectionRepository.deleteByVendorProfileId(profile.getId());
     }
 
@@ -93,7 +131,7 @@ public class GoogleCalendarService {
             }
             GoogleCalendarConnection connection = connectionOpt.get();
             String accessToken = googleCalendarClient.mintAccessToken(
-                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()));
+                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()), connection.getOauthClient());
             String eventId = googleCalendarClient.createEvent(
                     accessToken, connection.getGoogleCalendarId(), summaryFor(booking), descriptionFor(booking),
                     booking.getEventDatetime());
@@ -117,7 +155,7 @@ public class GoogleCalendarService {
             }
             GoogleCalendarConnection connection = connectionOpt.get();
             String accessToken = googleCalendarClient.mintAccessToken(
-                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()));
+                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()), connection.getOauthClient());
             googleCalendarClient.updateEventSummary(
                     accessToken, connection.getGoogleCalendarId(), booking.getGoogleCalendarEventId(),
                     "CANCELLED: " + summaryFor(booking));
@@ -151,7 +189,7 @@ public class GoogleCalendarService {
         }
         try {
             String accessToken = googleCalendarClient.mintAccessToken(
-                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()));
+                    tokenEncryptionService.decrypt(connection.getRefreshTokenEncrypted()), connection.getOauthClient());
             for (Booking booking : futureBookings) {
                 try {
                     boolean alreadyOnCalendar = booking.getGoogleCalendarEventId() != null

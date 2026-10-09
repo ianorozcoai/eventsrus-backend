@@ -39,6 +39,7 @@ public class BookingAmendmentService {
     private final UserRepository userRepository;
     private final VendorPackageRepository vendorPackageRepository;
     private final NotificationService notificationService;
+    private final SmsService smsService;
 
     @Transactional
     public BookingAmendmentResponse propose(
@@ -79,6 +80,13 @@ public class BookingAmendmentService {
                 "Booking change proposed",
                 displayName(requester) + " proposed a change to your booking: " + note,
                 "BOOKING", booking.getId());
+        // SMS only goes to vendors (see SmsService's doc comment) - only fires
+        // here when the planner is the one proposing, i.e. the vendor is the
+        // "other party" who needs to respond. A vendor proposing their own
+        // amendment never SMSes themselves.
+        if (otherParty.getId().equals(booking.getVendorUser().getId())) {
+            smsService.notifyVendorAmendmentProposed(otherParty, requester, booking.getId());
+        }
 
         return toResponse(amendment);
     }

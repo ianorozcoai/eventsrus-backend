@@ -56,6 +56,7 @@ public class BookingService {
     private final ReviewService reviewService;
     private final QuotationService quotationService;
     private final BookingAmendmentRepository bookingAmendmentRepository;
+    private final SmsService smsService;
 
     @Transactional
     public BookingResponse propose(
@@ -176,6 +177,7 @@ public class BookingService {
                 "Payment screenshot submitted",
                 displayName(planner) + " uploaded a payment screenshot for your review",
                 "BOOKING", booking.getId());
+        smsService.notifyVendorPaymentScreenshot(booking.getVendorUser(), planner, "BOOKING", booking.getId());
 
         recordStatusChange(booking, oldStatus, BookingStatus.PAYMENT_SUBMITTED, planner, null);
         return toResponse(booking);

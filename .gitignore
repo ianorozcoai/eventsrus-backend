@@ -35,6 +35,7 @@ build/
 ### Local secrets ###
 application-local.properties
 application-supabase.properties
+firebase-service-account.json
 
 ### Claude Code local permissions (not for sharing/team-wide) ###
 .claude/settings.local.json

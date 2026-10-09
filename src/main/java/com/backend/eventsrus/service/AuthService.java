@@ -14,6 +14,7 @@ public class AuthService {
     private final UserService userService;
     private final JwtService jwtService;
     private final VendorPlanService vendorPlanService;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthResponse authenticateWithGoogle(GoogleAuthRequest request) {
         GoogleUserInfo googleUser = googleTokenVerifierService.verify(request.getIdToken());
@@ -21,13 +22,31 @@ public class AuthService {
         return issueTokenFor(user);
     }
 
+    /**
+     * Redeems a refresh token for a fresh access/refresh token pair - see
+     * RefreshTokenService#validateAndRotate for the single-use/rotation
+     * behavior. Throws InvalidRefreshTokenException (-> 401) if it's
+     * unknown, already used, or expired, same as a real re-login would be
+     * required for.
+     */
+    public AuthResponse refresh(String rawRefreshToken) {
+        User user = refreshTokenService.validateAndRotate(rawRefreshToken);
+        return issueTokenFor(user);
+    }
+
+    public void logout(String rawRefreshToken) {
+        refreshTokenService.revoke(rawRefreshToken);
+    }
+
     public AuthResponse issueTokenFor(User user) {
         String token = jwtService.generateToken(user.getEmail(), user.getRole());
+        String refreshToken = refreshTokenService.issue(user);
         VendorPlanService.EffectivePlan effectivePlan = vendorPlanService.getEffectivePlan(user.getId());
 
         return AuthResponse.builder()
                 .id(user.getId())
                 .token(token)
+                .refreshToken(refreshToken)
                 .expiresIn(jwtService.getExpirationMs() / 1000)
                 .role(user.getRole())
                 .signupIntent(user.getSignupIntent())

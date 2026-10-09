@@ -1,8 +1,11 @@
 package com.backend.eventsrus.model;
 
 import com.backend.eventsrus.common.BaseEntity;
+import com.backend.eventsrus.enums.GoogleOAuthClient;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
@@ -42,4 +45,9 @@ public class GoogleCalendarConnection extends BaseEntity {
 
     @Column(name = "connected_at", nullable = false)
     private Instant connectedAt;
+
+    /** Which Google OAuth client issued refreshTokenEncrypted - see GoogleOAuthClient's own doc comment. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "oauth_client", nullable = false)
+    private GoogleOAuthClient oauthClient;
 }

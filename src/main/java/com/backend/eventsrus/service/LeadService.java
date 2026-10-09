@@ -68,6 +68,7 @@ public class LeadService {
                         .plannerName(displayName(lead.getPlannerUser()))
                         .eventId(lead.getEvent().getId())
                         .eventName(lead.getEvent().getName())
+                        .eventDate(lead.getEvent().getEventDate())
                         .firstVisitedAt(lead.getFirstVisitedAt())
                         .lastVisitedAt(lead.getLastVisitedAt())
                         .build())

@@ -1,6 +1,7 @@
 package com.backend.eventsrus.dto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,6 +16,8 @@ public class LeadResponse {
     private String plannerName;
     private Long eventId;
     private String eventName;
+    /** Null when the planner never set a date for this event - not mandatory. */
+    private LocalDate eventDate;
     private Instant firstVisitedAt;
     private Instant lastVisitedAt;
 }

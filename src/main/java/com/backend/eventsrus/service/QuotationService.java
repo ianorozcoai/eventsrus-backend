@@ -79,6 +79,7 @@ public class QuotationService {
     private final QuotationAttachmentRepository quotationAttachmentRepository;
     private final SystemSettingService systemSettingService;
     private final GoogleCalendarService googleCalendarService;
+    private final SmsService smsService;
 
     @Transactional
     public QuotationResponse requestQuotation(
@@ -109,6 +110,7 @@ public class QuotationService {
                 "New quotation request",
                 displayName(planner) + " requested a quotation for their event",
                 "QUOTATION", quotation.getId());
+        smsService.notifyVendorQuotationRequest(vendor, planner, quotation.getId());
 
         recordStatusChange(quotation, null, QuotationStatus.REQUEST_FOR_QUOTE, planner, null, null, null,
                 targetDate, validPackageIds);
@@ -405,6 +407,7 @@ public class QuotationService {
                 "Payment screenshot submitted",
                 displayName(planner) + " uploaded a payment screenshot for your review",
                 "QUOTATION", quotation.getId());
+        smsService.notifyVendorPaymentScreenshot(quotation.getVendorUser(), planner, "QUOTATION", quotation.getId());
 
         recordStatusChange(quotation, oldStatus, QuotationStatus.PAYMENT_REVIEW, planner, null, null, null, null,
                 null, key, null);

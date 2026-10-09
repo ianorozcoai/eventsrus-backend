@@ -17,7 +17,13 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final PushNotificationSenderService pushNotificationSenderService;
 
+    /**
+     * Every in-app notification (new message, lead, quotation, booking
+     * status change, ...) goes through here, so this is also the single
+     * place a push gets sent - no per-event-type wiring needed elsewhere.
+     */
     @Transactional
     public void notify(User recipient, NotificationType type, String title, String body,
             String relatedEntityType, Long relatedEntityId) {
@@ -30,6 +36,7 @@ public class NotificationService {
                 .relatedEntityId(relatedEntityId)
                 .read(false)
                 .build());
+        pushNotificationSenderService.sendToUser(recipient.getId(), title, body, relatedEntityType, relatedEntityId);
     }
 
     public List<NotificationResponse> listNotifications(String email) {

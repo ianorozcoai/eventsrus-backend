@@ -69,6 +69,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(SubscriptionConflictException.class)
     public ResponseEntity<ErrorResponse> handleSubscriptionConflict(
             SubscriptionConflictException ex, HttpServletRequest request) {

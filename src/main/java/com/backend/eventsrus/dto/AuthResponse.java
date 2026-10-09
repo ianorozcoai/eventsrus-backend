@@ -23,6 +23,14 @@ public class AuthResponse {
 
     private long expiresIn;
 
+    /**
+     * Long-lived (jwt.refresh-expiration-ms) - exchanged for a fresh token
+     * pair via POST /api/v1/auth/refresh once the short-lived access token
+     * above expires, so a mobile session can stay signed in for weeks
+     * without a full re-login. See RefreshTokenService.
+     */
+    private String refreshToken;
+
     private Role role;
 
     /**
