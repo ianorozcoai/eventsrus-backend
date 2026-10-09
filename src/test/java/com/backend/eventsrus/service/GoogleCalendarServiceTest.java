@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.backend.eventsrus.enums.BookingStatus;
+import com.backend.eventsrus.enums.GoogleOAuthClient;
 import com.backend.eventsrus.model.Booking;
 import com.backend.eventsrus.model.Event;
 import com.backend.eventsrus.model.GoogleCalendarConnection;
@@ -80,7 +81,7 @@ class GoogleCalendarServiceTest {
             when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
             when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
             when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
-            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token", GoogleOAuthClient.WEB)).thenReturn("access-token");
 
             Booking booking = bookingFor(VENDOR_USER);
             when(bookingRepository.findByVendorUserIdAndStatus(1L, BookingStatus.BOOKED)).thenReturn(List.of(booking));
@@ -100,7 +101,7 @@ class GoogleCalendarServiceTest {
             when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
             when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
             when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
-            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token", GoogleOAuthClient.WEB)).thenReturn("access-token");
 
             Booking booking = bookingFor(VENDOR_USER);
             booking.setGoogleCalendarEventId("google-event-id-already-there");
@@ -121,7 +122,7 @@ class GoogleCalendarServiceTest {
             when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.empty());
             when(tokenEncryptionService.encrypt("raw-refresh-token")).thenReturn("enc-token");
             when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
-            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token", GoogleOAuthClient.WEB)).thenReturn("access-token");
 
             Booking booking = bookingFor(VENDOR_USER);
             booking.setGoogleCalendarEventId("google-event-id-deleted");
@@ -149,7 +150,7 @@ class GoogleCalendarServiceTest {
 
             googleCalendarService.saveConnection("vendor@example.com", "raw-refresh-token", "primary");
 
-            verify(googleCalendarClient, never()).mintAccessToken(any());
+            verify(googleCalendarClient, never()).mintAccessToken(any(), any());
             verify(googleCalendarClient, never()).createEvent(any(), any(), any(), any(), any());
         }
     }
@@ -171,11 +172,12 @@ class GoogleCalendarServiceTest {
         @Test
         void createsAnEventAndStoresItsIdWhenConnected() {
             GoogleCalendarConnection connection = GoogleCalendarConnection.builder()
-                    .vendorProfile(PROFILE).refreshTokenEncrypted("enc-token").googleCalendarId("primary").build();
+                    .vendorProfile(PROFILE).refreshTokenEncrypted("enc-token").googleCalendarId("primary")
+                    .oauthClient(GoogleOAuthClient.WEB).build();
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
             when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.of(connection));
             when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
-            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token", GoogleOAuthClient.WEB)).thenReturn("access-token");
             when(googleCalendarClient.createEvent(eq("access-token"), eq("primary"), anyString(), anyString(), any()))
                     .thenReturn("google-event-id-123");
 
@@ -216,11 +218,12 @@ class GoogleCalendarServiceTest {
         @Test
         void relabelsTheExistingEventRatherThanDeletingIt() {
             GoogleCalendarConnection connection = GoogleCalendarConnection.builder()
-                    .vendorProfile(PROFILE).refreshTokenEncrypted("enc-token").googleCalendarId("primary").build();
+                    .vendorProfile(PROFILE).refreshTokenEncrypted("enc-token").googleCalendarId("primary")
+                    .oauthClient(GoogleOAuthClient.WEB).build();
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.of(PROFILE));
             when(connectionRepository.findByVendorProfileId(9L)).thenReturn(Optional.of(connection));
             when(tokenEncryptionService.decrypt("enc-token")).thenReturn("raw-refresh-token");
-            when(googleCalendarClient.mintAccessToken("raw-refresh-token")).thenReturn("access-token");
+            when(googleCalendarClient.mintAccessToken("raw-refresh-token", GoogleOAuthClient.WEB)).thenReturn("access-token");
 
             Booking booking = bookingFor(VENDOR_USER);
             booking.setGoogleCalendarEventId("google-event-id-123");
