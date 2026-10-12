@@ -140,6 +140,34 @@
 			<artifactId>firebase-admin</artifactId>
 			<version>9.5.0</version>
 		</dependency>
+
+		<!-- Real Postgres (not H2) for integration tests - migrations use
+		     Postgres-only syntax (jsonb, gen_random_uuid()), and a
+		     LazyInitializationException reproduction needs real Hibernate/
+		     Postgres session semantics, not an approximation.
+		     spring-boot-dependencies' testcontainers.version property
+		     points at 2.0.5, but the postgresql/junit-jupiter modules
+		     haven't published a 2.x release yet (only the base
+		     testcontainers artifact has) - pinning all three explicitly to
+		     the latest 1.x line instead keeps them mutually compatible. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
+			<version>1.21.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>1.21.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>1.21.4</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

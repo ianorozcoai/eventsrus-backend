@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      # Runs all 17 existing unit tests plus the new Testcontainers
+      # integration test. ubuntu-latest has Docker preinstalled, so the
+      # integration test's PostgreSQLContainer needs no extra service
+      # config here - Testcontainers manages its own container lifecycle.
+      - name: Test
+        run: ./mvnw -B test
+
+      # Mirrors the Dockerfile's own build command exactly - catches a
+      # stale/broken test file (which still gets compiled by `package`
+      # even with -DskipTests) before it ever reaches the Railway build.
+      - name: Build (mirrors Dockerfile)
+        run: ./mvnw -B -DskipTests package
