@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class EventsrusApplicationTests {
+class EventsrusApplicationTests extends AbstractIntegrationTest {
 
 	@Test
 	void contextLoads() {

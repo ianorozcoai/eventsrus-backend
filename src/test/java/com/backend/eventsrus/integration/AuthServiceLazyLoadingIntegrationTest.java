@@ -2,6 +2,7 @@ package com.backend.eventsrus.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.backend.eventsrus.AbstractIntegrationTest;
 import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SignupIntent;
@@ -12,12 +13,6 @@ import com.backend.eventsrus.service.RefreshTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Regression guard for a LazyInitializationException class of bug found
@@ -42,19 +37,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * lazy-proxy/session behavior needs the real thing, not an approximation.
  */
 @SpringBootTest
-@Testcontainers
-@ActiveProfiles("test")
-class AuthServiceLazyLoadingIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void datasourceProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+class AuthServiceLazyLoadingIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
