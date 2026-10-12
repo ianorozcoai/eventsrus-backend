@@ -22,6 +22,9 @@ public interface VendorProfileRepository extends JpaRepository<VendorProfile, Lo
 
     List<VendorProfile> findByCityIgnoreCase(String city);
 
+    /** Deliberate name search - a planner who already has a specific vendor in mind, not a category/location match. */
+    List<VendorProfile> findByBusinessNameContainingIgnoreCase(String businessName);
+
     /** Vendors who include {@code businessType} among their types, whose operating areas include {@code area}, or who serve "Entire Philippines". */
     @Query("select vp from VendorProfile vp join vp.businessTypes bt join vp.operatingAreas oa "
             + "where bt = :businessType and (oa = :area or oa = 'Entire Philippines')")

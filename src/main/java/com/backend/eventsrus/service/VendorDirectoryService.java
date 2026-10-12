@@ -108,6 +108,7 @@ public class VendorDirectoryService {
 
         return VendorPublicProfileResponse.builder()
                 .vendorUserId(profile.getUser().getId())
+                .vendorProfileId(profile.getId())
                 .businessName(profile.getBusinessName())
                 .ownerName(profile.getOwnerName())
                 .description(profile.getDescription())

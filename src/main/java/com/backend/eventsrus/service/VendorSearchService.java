@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -77,6 +78,36 @@ public class VendorSearchService {
         return vendorProfileRepository.findByCityIgnoreCase(city.trim()).stream()
                 .filter(this::hasActiveSubscription)
                 .toList();
+    }
+
+    /**
+     * Deliberate search for a specific vendor the planner already has in
+     * mind, by (partial, case-insensitive) business name - distinct from
+     * findMatchingVendors above, which only ever surfaces vendors the AI
+     * picked for one event's category/location/date. {@code query} is
+     * required (a blank query returns nothing rather than every vendor);
+     * {@code businessType} further narrows an already-blank query's name
+     * matches, it doesn't stand alone as a browse-everything mode.
+     * {@code @Transactional} so businessTypes (a LAZY collection) can be
+     * force-initialized below before returning - the caller (controller
+     * layer, building SuggestedVendorResponse.businessTypes for the
+     * ungrouped result card) runs after this method's session has closed.
+     */
+    @Transactional(readOnly = true)
+    public List<VendorProfile> searchVendors(String query, BusinessType businessType) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        List<VendorProfile> results = vendorProfileRepository.findByBusinessNameContainingIgnoreCase(query.trim()).stream()
+                .filter(this::hasActiveSubscription)
+                .filter(vp -> businessType == null || vp.getBusinessTypes().contains(businessType))
+                .sorted(Comparator.comparing(VendorProfile::isTopVendor)
+                        .thenComparing(VendorProfile::isVerified)
+                        .reversed()
+                        .thenComparing(VendorProfile::getBusinessName, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        results.forEach(vp -> vp.getBusinessTypes().size());
+        return results;
     }
 
     // A vendor whose subscription has lapsed stops being recommended to

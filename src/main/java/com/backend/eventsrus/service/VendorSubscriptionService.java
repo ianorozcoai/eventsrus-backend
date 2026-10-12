@@ -61,8 +61,11 @@ public class VendorSubscriptionService {
     // private-document link sitting on an admin review page).
     private static final Duration PAYMENT_SCREENSHOT_URL_TTL = Duration.ofHours(1);
 
-    private static final EnumSet<SubscriptionStatus> NON_TERMINAL_STATUSES = EnumSet.of(
-            SubscriptionStatus.APPROVAL_PENDING,
+    // Deliberately excludes APPROVAL_PENDING - that status only ever means
+    // "createSubscription created this row, but the vendor hasn't actually
+    // approved it on PayPal's page yet" (see below), never a real
+    // double-subscribe risk, so it must not block a retry.
+    private static final EnumSet<SubscriptionStatus> LIVE_PAYPAL_STATUSES = EnumSet.of(
             SubscriptionStatus.APPROVED,
             SubscriptionStatus.ACTIVE,
             SubscriptionStatus.SUSPENDED);
@@ -100,11 +103,17 @@ public class VendorSubscriptionService {
         // paid subscription.
         boolean hasLivePaypalSubscription =
                 vendorSubscriptionRepository.existsByUserIdAndBillingSourceAndStatusIn(
-                        user.getId(), BillingSource.PAYPAL, NON_TERMINAL_STATUSES)
+                        user.getId(), BillingSource.PAYPAL, LIVE_PAYPAL_STATUSES)
                         && !vendorPlanService.getEffectivePlan(user.getId()).expired();
         if (hasLivePaypalSubscription) {
             throw new SubscriptionConflictException("You already have an active or pending subscription.");
         }
+
+        // Starting fresh clears out any earlier abandoned attempt (the
+        // vendor tapped "Continue with PayPal" before but never actually
+        // approved it there) rather than leaving it to accumulate.
+        vendorSubscriptionRepository.deleteByUserIdAndBillingSourceAndStatus(
+                user.getId(), BillingSource.PAYPAL, SubscriptionStatus.APPROVAL_PENDING);
 
         VendorSubscription subscription = vendorSubscriptionRepository.save(
                 VendorSubscription.builder()

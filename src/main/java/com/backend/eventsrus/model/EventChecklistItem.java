@@ -1,6 +1,7 @@
 package com.backend.eventsrus.model;
 
 import com.backend.eventsrus.common.BaseEntity;
+import com.backend.eventsrus.enums.BusinessType;
 import com.backend.eventsrus.enums.ChecklistSource;
 import com.backend.eventsrus.enums.ChecklistStatus;
 import jakarta.persistence.Column;
@@ -38,4 +39,14 @@ public class EventChecklistItem extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ChecklistSource source;
+
+    /** Which supplier category this came from, if any - null for a planner-typed custom item or a bookmark-origin item (see vendorProfile below). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vendor_type")
+    private BusinessType vendorType;
+
+    /** Which specific vendor this came from, if any - set only for a bookmark-origin item, so the client can link straight to that vendor's storefront. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_profile_id")
+    private VendorProfile vendorProfile;
 }

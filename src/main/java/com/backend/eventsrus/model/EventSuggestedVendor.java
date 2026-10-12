@@ -10,6 +10,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -39,4 +41,12 @@ public class EventSuggestedVendor extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "vendor_type", nullable = false)
     private BusinessType vendorType;
+
+    /** Whether the planner has opted into actively browsing/pursuing this category - defaults false, an explicit choice. */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean selected = false;
+
+    /** Optional - how much of the event's overall budget the planner earmarks for this one category. */
+    private BigDecimal budget;
 }

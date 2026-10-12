@@ -21,6 +21,14 @@ public interface VendorSubscriptionRepository extends JpaRepository<VendorSubscr
     boolean existsByUserIdAndBillingSourceAndStatusIn(
             Long userId, BillingSource billingSource, Collection<SubscriptionStatus> statuses);
 
+    // Clears an abandoned PayPal checkout attempt (createSubscription creates
+    // this row as APPROVAL_PENDING before the vendor ever reaches PayPal's
+    // approval page - if they back out instead of approving, nothing else
+    // ever cleans it up) so a retry isn't blocked forever by a subscription
+    // that was never actually approved.
+    void deleteByUserIdAndBillingSourceAndStatus(
+            Long userId, BillingSource billingSource, SubscriptionStatus status);
+
     Optional<VendorSubscription> findByPaypalSubscriptionId(String paypalSubscriptionId);
 
     // Plain "ORDER BY current_period_start DESC" would let Postgres' default

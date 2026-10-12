@@ -12,6 +12,8 @@ import lombok.Getter;
 public class VendorPublicProfileResponse {
 
     private Long vendorUserId;
+    /** The VendorProfile's own id (distinct from vendorUserId above) - needed only by a planner viewer, to bookmark this vendor for an event. */
+    private Long vendorProfileId;
     private String businessName;
     private String ownerName;
     private String description;

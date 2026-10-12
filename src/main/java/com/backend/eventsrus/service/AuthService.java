@@ -5,6 +5,7 @@ import com.backend.eventsrus.dto.GoogleAuthRequest;
 import com.backend.eventsrus.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +29,18 @@ public class AuthService {
      * behavior. Throws InvalidRefreshTokenException (-> 401) if it's
      * unknown, already used, or expired, same as a real re-login would be
      * required for.
+     *
+     * @Transactional here (not just on issueTokenFor below) because
+     * validateAndRotate is its own separately-@Transactional call: its
+     * session closes the moment it returns, and the User proxy it hands
+     * back stays bound to that dead session - issueTokenFor opening a new
+     * transaction doesn't help, since a Hibernate proxy resolves lazy
+     * fields through the session it was created in, not whatever's active
+     * on the thread. Transactional's default REQUIRED propagation means
+     * this method's transaction is what validateAndRotate actually joins,
+     * keeping the User attached through both calls.
      */
+    @Transactional
     public AuthResponse refresh(String rawRefreshToken) {
         User user = refreshTokenService.validateAndRotate(rawRefreshToken);
         return issueTokenFor(user);
@@ -38,6 +50,13 @@ public class AuthService {
         refreshTokenService.revoke(rawRefreshToken);
     }
 
+    // refresh() hands this a User proxy from RefreshToken#user (a LAZY
+    // @ManyToOne) whose owning transaction has already closed by the time
+    // it gets here - @Transactional opens a fresh session so user.getEmail()
+    // /getRole() below can actually resolve it, instead of throwing
+    // LazyInitializationException ("no session"). Not readOnly: this also
+    // covers the write in refreshTokenService#issue just below.
+    @Transactional
     public AuthResponse issueTokenFor(User user) {
         String token = jwtService.generateToken(user.getEmail(), user.getRole());
         String refreshToken = refreshTokenService.issue(user);
