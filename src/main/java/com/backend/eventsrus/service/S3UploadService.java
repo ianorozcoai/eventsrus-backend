@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -223,6 +224,35 @@ public class S3UploadService {
         } finally {
             writer.dispose();
         }
+    }
+
+    /**
+     * Best-effort delete of one stored file (account deletion). Never throws: a
+     * missing or already-deleted file, or a transient storage error, must not
+     * stop the rest of an account scrub. Returns whether the delete call succeeded.
+     */
+    public boolean deleteQuietly(String key, Visibility visibility) {
+        if (key == null || key.isBlank()) {
+            return false;
+        }
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucketFor(visibility))
+                    .key(key)
+                    .build());
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Same as {@link #deleteQuietly}, for a file stored in the public bucket and known only by its public URL. */
+    public boolean deletePublicByUrlQuietly(String publicUrl) {
+        String prefix = publicBaseUrl + "/";
+        if (publicUrl == null || !publicUrl.startsWith(prefix)) {
+            return false;
+        }
+        return deleteQuietly(publicUrl.substring(prefix.length()), Visibility.PUBLIC);
     }
 
     public enum Visibility {

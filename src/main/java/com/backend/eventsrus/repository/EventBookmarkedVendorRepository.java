@@ -12,4 +12,7 @@ public interface EventBookmarkedVendorRepository extends JpaRepository<EventBook
     Optional<EventBookmarkedVendor> findByEventIdAndVendorProfileId(Long eventId, Long vendorProfileId);
 
     void deleteByEventIdAndVendorProfileId(Long eventId, Long vendorProfileId);
+
+    /** Account deletion: a deleted supplier disappears from every planner's bookmarks. */
+    void deleteByVendorProfileId(Long vendorProfileId);
 }

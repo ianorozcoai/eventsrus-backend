@@ -106,4 +106,23 @@ public class User extends BaseEntity {
     @Column(name = "pro_welcome_shown", nullable = false)
     @Builder.Default
     private boolean proWelcomeShown = false;
+
+    // Account deletion (see AccountDeletionService): requested-at starts the
+    // 30-day grace period and is cleared by signing in again; deleted-at is
+    // set once the account has been scrubbed for good.
+    @Column(name = "deletion_requested_at")
+    private Instant deletionRequestedAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    // Lapsed-supplier cleanup (see InactiveSupplierCleanupService): when the
+    // 24-month "your account will be deleted" email went out (cleared by
+    // signing in or re-subscribing), and when the stored ID/selfie files were
+    // removed after 12 months of inactivity.
+    @Column(name = "inactivity_warning_sent_at")
+    private Instant inactivityWarningSentAt;
+
+    @Column(name = "id_files_purged_at")
+    private Instant idFilesPurgedAt;
 }

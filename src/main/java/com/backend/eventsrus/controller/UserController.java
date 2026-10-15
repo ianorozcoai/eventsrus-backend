@@ -16,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,18 @@ public class UserController {
 
     private final UserService userService;
     private final AuthService authService;
+    private final com.backend.eventsrus.service.AccountDeletionService accountDeletionService;
+
+    // Starts the 30-day account-deletion grace period (Google Play requires an
+    // in-app way to delete an account). 409 if the user must first cancel a
+    // subscription or an upcoming booking. Signing in again cancels it.
+    @PostMapping("/me/deletion-request")
+    public com.backend.eventsrus.dto.AccountDeletionResponse requestAccountDeletion(
+            @Valid @RequestBody com.backend.eventsrus.dto.AccountDeletionRequest request,
+            Authentication authentication) {
+        return new com.backend.eventsrus.dto.AccountDeletionResponse(
+                accountDeletionService.requestDeletion(authentication.getName()));
+    }
 
     // legalDocumentFiles/legalDocumentTypes/legalDocumentLabels are parallel
     // lists (correlated by index) - a vendor can now attach any number of

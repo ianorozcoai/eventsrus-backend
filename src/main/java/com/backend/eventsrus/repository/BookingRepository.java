@@ -18,6 +18,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByVendorUserIdAndStatus(Long vendorUserId, BookingStatus status);
 
+    /** Account deletion guard: any live, still-upcoming booking involving this user as planner or vendor. */
+    @org.springframework.data.jpa.repository.Query(
+            "select count(b) from Booking b where (b.vendorUser.id = :userId or b.plannerUser.id = :userId) "
+                    + "and b.status in :liveStatuses and b.eventDatetime > :now")
+    long countLiveUpcomingBookingsFor(
+            @org.springframework.data.repository.query.Param("userId") Long userId,
+            @org.springframework.data.repository.query.Param("liveStatuses") java.util.Collection<BookingStatus> liveStatuses,
+            @org.springframework.data.repository.query.Param("now") Instant now);
+
     long countByVendorUserIdAndStatus(Long vendorUserId, BookingStatus status);
 
     // Admin Vendors directory's "Bookings" column - every booking except

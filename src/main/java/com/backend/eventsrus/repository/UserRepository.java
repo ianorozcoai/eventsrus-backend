@@ -9,6 +9,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    /** Every live (not yet scrubbed) account with the given role, for the lapsed-supplier sweep. */
+    java.util.List<User> findByRoleAndDeletedAtIsNull(com.backend.eventsrus.enums.Role role);
+
+    /** Accounts whose 30-day deletion grace period has run out and are not yet scrubbed. */
+    java.util.List<User> findByDeletionRequestedAtBeforeAndDeletedAtIsNull(java.time.Instant cutoff);
+
+
     Optional<User> findByGoogleId(String googleId);
 
     Optional<User> findByEmail(String email);

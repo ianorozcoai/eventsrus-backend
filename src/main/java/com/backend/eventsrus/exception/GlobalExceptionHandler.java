@@ -81,6 +81,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(AccountDeletionBlockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountDeletionBlocked(
+            AccountDeletionBlockedException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(QuotationConflictException.class)
     public ResponseEntity<ErrorResponse> handleQuotationConflict(
             QuotationConflictException ex, HttpServletRequest request) {

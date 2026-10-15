@@ -84,6 +84,11 @@ public class UserService {
                 .map(existing -> requireNoIdentityConflict(existing, declaredIntent))
                 .orElseGet(() -> createFromGoogle(googleUser, declaredIntent));
         user.setLastLoginAt(Instant.now());
+        // Signing in during the 30-day grace period cancels a pending
+        // account deletion (see AccountDeletionService).
+        user.setDeletionRequestedAt(null);
+        // Signing in also ends a pending lapsed-supplier warning (InactiveSupplierCleanupService).
+        user.setInactivityWarningSentAt(null);
         return userRepository.save(user);
     }
 

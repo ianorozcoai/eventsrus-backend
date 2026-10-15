@@ -1,16 +1,32 @@
 # EventsRUs Backend REST API
-**Project Name:** `eventsrus-backend` | **Stack:** Java Spring Boot + PostgreSQL (Supabase)[cite: 5]  
-**Repository:** `https://github.com/ianorozcoai/eventsrus-backend.git`
+**Project:** `eventsrus-backend` | **Stack:** Java Spring Boot, PostgreSQL on Supabase, Flyway | **Repo:** `github.com/ianorozcoai/eventsrus-backend`
+**Parent doc:** `claude.md` (project root). Coding conventions: `agents/cto/sub_agents/developer.md`. Product workflow: `agents/cto/cto.md`.
 
-## Overview
-Core engine for data persistence, auth, ticketing, payments, and event logistics.[cite: 5]
+## Role
+The single source of truth for data and rules. Both `eventsrus-ui` (mobile) and `eventsrus-web` call it.
 
 ## Specs
-- **Framework:** Spring Boot (Spring Web, Spring Security, Spring Data JPA)[cite: 5]
-- **Repository:** `https://github.com/ianorozcoai/eventsrus-backend.git`
-- **Database:** PostgreSQL hosted on Supabase (with Flyway / Liquibase migrations)[cite: 5]
-- **Auth:** JWT Tokens[cite: 5]
-- **Modules:** `/api/v1/auth`, `/api/v1/events`, `/api/v1/tickets`, `/api/v1/users`[cite: 5]
+- Spring Web, Spring Security (JWT; subject = user email), Spring Data JPA, Flyway migrations in `src/main/resources/db/migration` (`V<n>__description.sql`, currently up to about V33).
+- File storage through `S3UploadService` (Cloudflare R2-style public CDN at `cdn.eventsrus.app`; private files via presigned URLs).
+- Dockerfile present. Config in `application.properties`, with a `supabase` profile.
+
+## Production
+Railway, `production` environment: backend at https://api.eventsrus.app, with a Railway Postgres service (volume attached). The `supabase` profile and Supabase MCP in this repo appear to be a local/older setup; production is on Railway Postgres (confirmed from Ian's Railway dashboard, 2026-10-16).
+
+## API areas (all under `/api/v1`)
+`auth`, `users`, `events`, `events/{id}/coordinator`, `notifications`, `recommendations`, `vendors` (directory), `vendors/me/*` (dashboard, leads, packages, gallery, settings, payment-methods, legal-documents, social links, referrals, **subscription**, **google-calendar**), `users/me/device-tokens` (push), `webhooks/paypal`, and `admin/*` (vendors, planners, subscription payments, SMS, reviews, support tickets, settings, referrals, dashboard).
+
+## Integrations
+| Integration | Notes |
+|---|---|
+| PayPal subscriptions | `PayPalSubscriptionClient`, `PayPalWebhookService`; `VendorSubscriptionService` is the main logic. |
+| GCash (manual) | Screenshot upload then admin review (`AdminSubscriptionPaymentController`). |
+| Google sign-in and Calendar | OAuth clients in env vars (`GOOGLE_*`); refresh tokens encrypted at rest. |
+| Firebase push | Service account file locally (git-ignored). |
+| Semaphore SMS, Anthropic API | Used by `SmsService` and the AI suggestion helper. |
+
+## Known gaps relevant to Google Play
+No account-deletion endpoint, no user report/block endpoints. See `docs/play-audit.md`.
 
 ## Tooling
-- **Supabase MCP:** registered at project scope (`.mcp.json`, HTTP transport, `https://mcp.supabase.com/mcp`) with `docs, account, database, debugging, development, functions, branching` features enabled. Lets agents inspect/manage the Supabase project (schema, config, docs) directly. Requires one-time OAuth authentication via `claude /mcp` in a terminal.
+Supabase MCP is configured in the root `.mcp.json`.

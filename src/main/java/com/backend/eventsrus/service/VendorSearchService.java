@@ -114,6 +114,10 @@ public class VendorSearchService {
     // planners - they still exist and can be reached directly (an existing
     // conversation/booking isn't affected), just not surfaced as a match.
     private boolean hasActiveSubscription(VendorProfile profile) {
+        // A deleted supplier never shows up, even if a cancelled plan still has days left on it.
+        if (profile.getUser().getDeletedAt() != null) {
+            return false;
+        }
         return vendorPlanService.getEffectivePlan(profile.getUser().getId()).plan() != null;
     }
 }

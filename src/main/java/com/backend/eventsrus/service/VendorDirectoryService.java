@@ -40,6 +40,10 @@ public class VendorDirectoryService {
     public VendorPublicProfileResponse getPublicProfile(String slug) {
         VendorProfile profile = vendorProfileRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + slug));
+        // A deleted supplier's storefront no longer exists (account deletion).
+        if (profile.getUser().getDeletedAt() != null) {
+            throw new IllegalStateException("Vendor not found: " + slug);
+        }
         Long vendorUserId = profile.getUser().getId();
         ReviewService.RatingSummary ratings = reviewService.ratingSummary(vendorUserId);
 
