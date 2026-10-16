@@ -93,6 +93,8 @@ class QuotationServiceTest {
     private GoogleCalendarService googleCalendarService;
     @Mock
     private SmsService smsService;
+    @Mock
+    private ModerationService moderationService;
 
     private QuotationService quotationService;
 
@@ -107,7 +109,24 @@ class QuotationServiceTest {
                 quotationRepository, eventRepository, userRepository, vendorProfileRepository,
                 vendorPackageRepository, notificationService, s3UploadService, quotationStatusEventRepository,
                 bookingRepository, bookingStatusEventRepository, vendorPlanService, quotationImageRepository,
-                quotationAttachmentRepository, systemSettingService, googleCalendarService, smsService);
+                quotationAttachmentRepository, systemSettingService, googleCalendarService, smsService,
+                moderationService);
+    }
+
+    @Test
+    void requestQuotationIsRefusedWhenEitherUserHasBlockedTheOther() {
+        Event event = Event.builder().id(5L).name("Ian's wedding").build();
+        when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(VENDOR));
+        when(eventRepository.findById(5L)).thenReturn(Optional.of(event));
+        org.mockito.Mockito.doThrow(new com.backend.eventsrus.exception.UserBlockedException("blocked"))
+                .when(moderationService).requireNotBlocked(PLANNER, VENDOR);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> quotationService.requestQuotation(
+                "planner@example.com", 5L, 1L, LocalDate.of(2026, 10, 10), "Hello", List.of(), null))
+                .isInstanceOf(com.backend.eventsrus.exception.UserBlockedException.class);
+
+        org.mockito.Mockito.verify(quotationRepository, org.mockito.Mockito.never()).save(any());
     }
 
     private Quotation quotationAt(QuotationStatus status) {

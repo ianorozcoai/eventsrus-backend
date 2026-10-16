@@ -9,10 +9,13 @@ public interface VendorReviewRepository extends JpaRepository<VendorReview, Long
 
     Optional<VendorReview> findByBookingId(Long bookingId);
 
-    /** Account deletion: blank the comment of every review this planner wrote. */
+    /**
+     * Account deletion: replace the comment of every review this planner wrote. Not null: the column is
+     * NOT NULL, and the app expects every review to have a comment.
+     */
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query(
-            "update VendorReview r set r.comment = null "
+            "update VendorReview r set r.comment = '[comment removed]' "
                     + "where r.booking.id in (select b.id from Booking b where b.plannerUser.id = :userId)")
     int scrubCommentsWrittenBy(@org.springframework.data.repository.query.Param("userId") Long userId);
 

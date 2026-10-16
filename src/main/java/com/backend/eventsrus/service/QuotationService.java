@@ -80,6 +80,7 @@ public class QuotationService {
     private final SystemSettingService systemSettingService;
     private final GoogleCalendarService googleCalendarService;
     private final SmsService smsService;
+    private final ModerationService moderationService;
 
     @Transactional
     public QuotationResponse requestQuotation(
@@ -90,6 +91,8 @@ public class QuotationService {
                 .orElseThrow(() -> new IllegalStateException("Vendor not found: " + vendorUserId));
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalStateException("Event not found: " + eventId));
+        // Blocked either way: no new requests (existing quotations stay visible).
+        moderationService.requireNotBlocked(planner, vendor);
 
         List<Long> validPackageIds = validatePackageIds(vendorUserId, packageIds);
 
@@ -178,6 +181,7 @@ public class QuotationService {
         vendorPlanService.requireActiveSubscription(vendor.getId());
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalStateException("Event not found: " + eventId));
+        moderationService.requireNotBlocked(vendor, event.getPlanner());
         if (quotationRepository.existsByEventIdAndVendorUserId(eventId, vendor.getId())) {
             throw new QuotationConflictException(
                     "A quotation already exists for this event - use the existing quote's revision flow instead");
