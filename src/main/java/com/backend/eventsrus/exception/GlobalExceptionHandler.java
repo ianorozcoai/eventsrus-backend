@@ -81,6 +81,17 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(UserBlockedException.class)
+    public ResponseEntity<ErrorResponse> handleUserBlocked(UserBlockedException ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(ModerationRequestException.class)
+    public ResponseEntity<ErrorResponse> handleModerationRequest(
+            ModerationRequestException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(AccountDeletionBlockedException.class)
     public ResponseEntity<ErrorResponse> handleAccountDeletionBlocked(
             AccountDeletionBlockedException ex, HttpServletRequest request) {

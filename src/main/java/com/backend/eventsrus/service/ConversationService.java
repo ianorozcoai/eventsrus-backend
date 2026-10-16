@@ -42,6 +42,7 @@ public class ConversationService {
     private final NotificationService notificationService;
     private final VendorPlanService vendorPlanService;
     private final S3UploadService s3UploadService;
+    private final ModerationService moderationService;
 
     /**
      * Planner's initial inquiry — finds or creates the (event, vendor)
@@ -162,6 +163,8 @@ public class ConversationService {
     private ConversationMessageResponse postMessage(
             Conversation conversation, User sender, User recipient, LocalDate targetDate, String message,
             MultipartFile attachment) {
+        // Blocked either way: no new messages (old ones stay visible). Checked before anything is uploaded.
+        moderationService.requireNotBlocked(sender, recipient);
         String attachmentKey = null;
         if (attachment != null && !attachment.isEmpty()) {
             if (!ALLOWED_ATTACHMENT_TYPES.contains(attachment.getContentType())) {

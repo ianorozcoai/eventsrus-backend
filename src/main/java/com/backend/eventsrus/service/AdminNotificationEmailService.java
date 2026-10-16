@@ -67,6 +67,25 @@ public class AdminNotificationEmailService {
                         + "Email: " + vendor.getEmail());
     }
 
+    // A user reported a message, review, storefront or person (see
+    // ModerationService). Only a heads-up: nothing is hidden or removed
+    // until the admin looks at it.
+    @Async
+    // Takes plain text (not the entity) because this runs on another thread,
+    // where the report's lazy user relations could no longer be loaded.
+    public void notifyNewReport(
+            String contentType, Long contentId, String reason, String details, String reportedName,
+            String reporterName) {
+        send("New report on EventsRUs: " + reason,
+                "A user reported something.\n\n"
+                        + "Type: " + contentType + " (id " + contentId + ")\n"
+                        + "Reason: " + reason + "\n"
+                        + "Details: " + (details != null ? details : "(none)") + "\n"
+                        + "Reported user: " + reportedName + "\n"
+                        + "Reported by: " + reporterName + "\n\n"
+                        + "Nothing has been hidden or removed. See the full list at GET /api/v1/admin/reports.");
+    }
+
     private String displayName(User user) {
         if (user.getFirstName() == null) {
             return user.getEmail();

@@ -52,6 +52,8 @@ class ConversationServiceTest {
     private VendorPlanService vendorPlanService;
     @Mock
     private S3UploadService s3UploadService;
+    @Mock
+    private ModerationService moderationService;
 
     private ConversationService conversationService;
 
@@ -62,7 +64,22 @@ class ConversationServiceTest {
     void setUp() {
         conversationService = new ConversationService(
                 conversationRepository, conversationMessageRepository, eventRepository, userRepository,
-                vendorProfileRepository, notificationService, vendorPlanService, s3UploadService);
+                vendorProfileRepository, notificationService, vendorPlanService, s3UploadService, moderationService);
+    }
+
+    @Test
+    void sendMessageIsRefusedWhenEitherUserHasBlockedTheOther() {
+        Conversation conversation = conversation();
+        when(userRepository.findByEmail("planner@example.com")).thenReturn(Optional.of(PLANNER));
+        when(conversationRepository.findById(7L)).thenReturn(Optional.of(conversation));
+        org.mockito.Mockito.doThrow(new com.backend.eventsrus.exception.UserBlockedException("blocked"))
+                .when(moderationService).requireNotBlocked(PLANNER, VENDOR);
+
+        assertThatThrownBy(() -> conversationService.sendMessage("planner@example.com", 7L, "Hello?", null))
+                .isInstanceOf(com.backend.eventsrus.exception.UserBlockedException.class);
+
+        verify(conversationMessageRepository, never()).save(any());
+        verify(notificationService, never()).notify(any(), any(), any(), any(), any(), any());
     }
 
     private Conversation conversation() {

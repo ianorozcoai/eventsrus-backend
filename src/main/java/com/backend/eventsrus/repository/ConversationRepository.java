@@ -14,4 +14,6 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findByVendorUserIdOrderByUpdatedAtDesc(Long vendorUserId);
 
     List<Conversation> findByEventId(Long eventId);
+
+    boolean existsByPlannerUserIdAndVendorUserId(Long plannerUserId, Long vendorUserId);
 }
