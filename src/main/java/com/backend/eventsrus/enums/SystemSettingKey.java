@@ -55,7 +55,7 @@ public enum SystemSettingKey {
     VENDOR_PRO_MONTHLY_PRICE(
             "vendor-pro-monthly-price",
             "Vendor PRO monthly price (PHP)",
-            "Base monthly price for the vendor PRO subscription. Semi-Annual (5x this, billed every 6 months) and Annual (10x this, billed every 12 months) are derived automatically. Changing this immediately updates the live PayPal billing plans, so both the vendor subscription page and what's actually charged change together.",
+            "Base monthly price for the vendor PRO subscription. Semi-Annual (5x this, billed every 6 months) and Annual (10x this, billed every 12 months) are derived automatically. Changing this immediately updates the live PayPal billing plans, so both the vendor subscription page and what's actually charged change together. REMINDER: prices for the Android app are set separately in Google Play Console and do NOT follow this setting - after changing it, update the Google Play subscription prices by hand too (new subscribers get the new price within hours; existing Play subscribers keep their old price unless you move them).",
             "999"),
     PLANNER_DIGITAL_BIRTHDAY_PRICE(
             "planner-digital-birthday-price",
