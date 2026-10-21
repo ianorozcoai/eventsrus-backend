@@ -12,6 +12,10 @@ import lombok.Getter;
 @AllArgsConstructor
 public class SubscriptionStatusResponse {
 
+    // The caller's backend user id - the Android app uses it as the RevenueCat
+    // app_user_id so Play purchases map back to this account (see
+    // RevenueCatWebhookService). Not secret: it is the caller's own id.
+    private Long userId;
     private PlanTier plan;
     private Instant expiresAt;
     private boolean expiringSoon;

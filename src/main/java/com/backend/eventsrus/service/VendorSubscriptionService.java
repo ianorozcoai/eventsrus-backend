@@ -233,6 +233,7 @@ public class VendorSubscriptionService {
         boolean gcashAwaitingVerification = gcashRow.map(sub -> sub.getStatus() == SubscriptionStatus.PAYMENT_VERIFICATION).orElse(false);
         boolean gcashRejected = gcashRow.map(sub -> sub.getStatus() == SubscriptionStatus.PAYMENT_REJECTED).orElse(false);
         return SubscriptionStatusResponse.builder()
+                .userId(userId)
                 .plan(effectivePlan.plan())
                 .expiresAt(effectivePlan.expiresAt())
                 .expiringSoon(effectivePlan.expiringSoon())

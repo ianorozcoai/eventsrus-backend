@@ -422,6 +422,7 @@ class VendorSubscriptionServiceTest {
 
             SubscriptionStatusResponse status = vendorSubscriptionService.getStatus(EMAIL);
 
+            assertThat(status.getUserId()).isEqualTo(1L);
             assertThat(status.isGcashRejected()).isTrue();
             assertThat(status.getGcashRejectionReason()).isEqualTo("Amount doesn't match the selected plan");
             assertThat(status.isGcashAwaitingVerification()).isFalse();
