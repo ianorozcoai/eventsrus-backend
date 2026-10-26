@@ -20,8 +20,8 @@ public enum SystemSettingKey {
     VENDOR_DEFAULT_TRIAL_DAYS(
             "vendor-default-trial-days",
             "New vendor default free trial (days)",
-            "Free PRO days every new vendor gets at onboarding when they do NOT enter a promo code, so they can set up their account before choosing a plan. 0 turns it off (new vendors must choose a plan right away).",
-            "7"),
+            "Extra free PRO days a new vendor gets at onboarding when they do NOT enter a promo code, ON TOP of the subscription grace period. Every new vendor always starts with a plan that has already reached its end date, so the grace period itself is their free trial and they can set up their account before choosing a plan. Leave at 0 so the trial is just the grace period; raising it lengthens the trial.",
+            "0"),
     SUBSCRIPTION_WARNING_DAYS(
             "subscription-warning-days",
             "Subscription expiry warning window (days)",

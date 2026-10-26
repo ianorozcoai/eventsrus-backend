@@ -250,18 +250,17 @@ public class UserService {
         // Javadoc.
         vendorReferralService.attribute(user, request.getReferralCode());
 
-        // Every new vendor starts on a free PRO trial so they can set up their
+        // Every new vendor starts on a free PRO plan so they can set up their
         // account before choosing a plan: the full promo trial (VENDOR_TRIAL_DAYS)
-        // with a valid promo code, otherwise the short default one
-        // (VENDOR_DEFAULT_TRIAL_DAYS, 7 unless an admin changes it; 0 = none, and
-        // then the vendor is left in VendorPlanService's "never subscribed"
-        // state, which drives the required plan-selection paywall until they pay
-        // via PayPal, GCash or Google Play). The paywall only returns once this
-        // trial (and the grace period after it) has run out.
+        // with a valid promo code, otherwise VENDOR_DEFAULT_TRIAL_DAYS (0 by
+        // default). With 0 the plan's end date is "now", so the vendor is
+        // immediately in VendorPlanService's grace period (SUBSCRIPTION_GRACE_PERIOD_DAYS)
+        // - that grace period IS the free trial, which avoids stacking a separate
+        // trial on top of it. The plan-selection paywall only appears once it ends.
         int trialDays = promoApplied
                 ? systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS)
-                : systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS);
-        if (trialDays > 0 && !vendorSubscriptionRepository.existsByUserId(user.getId())) {
+                : Math.max(0, systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS));
+        if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
             Instant trialEnd = now.plus(trialDays, ChronoUnit.DAYS);
             VendorSubscription subscription = vendorSubscriptionRepository.save(
@@ -273,7 +272,10 @@ public class UserService {
                             .billingSource(BillingSource.FREE_GRANT)
                             .status(SubscriptionStatus.ACTIVE)
                             .build());
-            vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd, BillingSource.FREE_GRANT);
+            // A 0-day grant (the grace period is the trial) is not worth a billing-history line.
+            if (trialDays > 0) {
+                vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd, BillingSource.FREE_GRANT);
+            }
         }
 
         // Fired last, after every other step has succeeded - this method is

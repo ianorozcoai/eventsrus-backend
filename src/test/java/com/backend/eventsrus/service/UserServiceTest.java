@@ -12,6 +12,7 @@ import com.backend.eventsrus.dto.VendorOnboardingRequest;
 import com.backend.eventsrus.enums.BillingSource;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SignupIntent;
+import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.SubscriptionStatus;
 import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.AccountIdentityConflictException;
@@ -264,7 +265,27 @@ class UserServiceTest {
         }
 
         @Test
-        void grantsTheShortDefaultTrialWhenNoPromoCodeGiven() {
+        void noPromoCodeStartsAPlanThatHasAlreadyEndedSoTheGracePeriodIsTheTrial() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS)).thenReturn(0);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBillingSource()).isEqualTo(BillingSource.FREE_GRANT);
+            assertThat(captor.getValue().getPlan()).isEqualTo(PlanTier.PRO);
+            // Ends "now": no extra trial days, the grace period that follows is the trial.
+            assertThat(captor.getValue().getCurrentPeriodEnd())
+                    .isBetween(Instant.now().minusSeconds(60), Instant.now().plusSeconds(60));
+            verify(vendorBillingHistoryService, never()).recordFreeGrant(any(), any(), any(), any());
+        }
+
+        @Test
+        void aNonZeroDefaultTrialSettingAddsDaysBeforeTheGracePeriod() {
             when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
             when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
@@ -275,25 +296,10 @@ class UserServiceTest {
 
             ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
             verify(vendorSubscriptionRepository).save(captor.capture());
-            assertThat(captor.getValue().getBillingSource()).isEqualTo(BillingSource.FREE_GRANT);
-            assertThat(captor.getValue().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
             assertThat(captor.getValue().getCurrentPeriodEnd())
                     .isAfter(Instant.now().plusSeconds(6L * 86400))
                     .isBefore(Instant.now().plusSeconds(8L * 86400));
             verify(vendorBillingHistoryService).recordFreeGrant(any(), any(), any(), eq(BillingSource.FREE_GRANT));
-        }
-
-        @Test
-        void grantsNothingWhenTheDefaultTrialIsTurnedOffAndNoPromoGiven() {
-            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
-            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
-            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
-            when(systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS)).thenReturn(0);
-
-            userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
-
-            verify(vendorSubscriptionRepository, never()).save(any());
-            verify(vendorBillingHistoryService, never()).recordFreeGrant(any(), any(), any(), any());
         }
 
         @Test

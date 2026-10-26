@@ -67,6 +67,19 @@ class VendorPlanServiceTest {
     }
 
     @Test
+    void aPlanThatEndsRightNowIsInTheGracePeriodForThirtyDaysLikeANewSuppliersTrial() {
+        when(systemSettingService.getInt(SystemSettingKey.SUBSCRIPTION_GRACE_PERIOD_DAYS)).thenReturn(30);
+        latest(Instant.now().minusSeconds(5), 0);
+
+        VendorPlanService.EffectivePlan plan = service.getEffectivePlan(USER_ID);
+
+        assertThat(plan.plan()).isEqualTo(PlanTier.PRO);
+        assertThat(plan.inGracePeriod()).isTrue();
+        assertThat(plan.expired()).isFalse();
+        assertThat(plan.graceEndsAt()).isAfter(Instant.now().plus(29, ChronoUnit.DAYS));
+    }
+
+    @Test
     void remainingDaysRoundsUpAndIncludesCarryOver() {
         latest(Instant.now().plus(10, ChronoUnit.DAYS).plusSeconds(60), 5);
 
