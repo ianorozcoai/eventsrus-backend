@@ -14,6 +14,7 @@ import com.backend.eventsrus.repository.VendorSubscriptionRepository;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class RevenueCatWebhookService {
     private final VendorBillingHistoryService vendorBillingHistoryService;
     private final VendorReferralService vendorReferralService;
     private final NotificationService notificationService;
+    private final VendorPlanService vendorPlanService;
 
     @Transactional
     public void handle(JsonNode body) {
@@ -89,7 +91,21 @@ public class RevenueCatWebhookService {
                     log.warn("RevenueCat {} event for user {} has no expiration; ignored", type, user.getId());
                     return existing.orElse(null);
                 }
+                // Paying early: days left on the previous plan (promo, GCash...) are added on top of this
+                // purchase. Read before the row is touched. Skipped when this very Google Play plan is
+                // still running, so a repeated INITIAL_PURCHASE can never count the same days twice.
+                boolean playPlanStillRunning = existing
+                        .map(row -> row.getCurrentPeriodEnd() != null
+                                && row.getCurrentPeriodEnd().plus(row.getCarryOverDays(), ChronoUnit.DAYS)
+                                        .isAfter(Instant.now()))
+                        .orElse(false);
+                int carryOverDays = "INITIAL_PURCHASE".equals(type) && !playPlanStillRunning
+                        ? vendorPlanService.remainingDays(user.getId())
+                        : -1;
                 VendorSubscription sub = existing.orElseGet(() -> newRow(user));
+                if (carryOverDays >= 0) {
+                    sub.setCarryOverDays(carryOverDays);
+                }
                 Instant previousEnd = sub.getCurrentPeriodEnd();
                 Instant start = purchasedAt != null ? purchasedAt : Instant.now();
                 sub.setStatus(SubscriptionStatus.ACTIVE);

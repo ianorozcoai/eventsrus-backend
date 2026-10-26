@@ -42,11 +42,29 @@ public class VendorPlanService {
         }
     }
 
+    /**
+     * Whole days (rounded up) left before the current plan ends, 0 if there is none or it has already
+     * ended (grace period not counted). A new paid plan stores this as its carry-over, so paying early
+     * adds the new plan's days on top of what was left instead of replacing them.
+     */
+    public int remainingDays(Long userId) {
+        EffectivePlan plan = getEffectivePlan(userId);
+        if (plan.plan() == null || plan.expiresAt() == null || !plan.expiresAt().isAfter(Instant.now())) {
+            return 0;
+        }
+        long seconds = java.time.Duration.between(Instant.now(), plan.expiresAt()).getSeconds();
+        return (int) ((seconds + 86_399L) / 86_400L);
+    }
+
     private EffectivePlan computeFrom(VendorSubscription subscription) {
         Instant periodEnd = subscription.getCurrentPeriodEnd();
         if (periodEnd == null) {
             // Still APPROVAL_PENDING — PayPal hasn't confirmed a billing period yet.
             return new EffectivePlan(null, null, false, false, false, null, subscription.getBillingSource());
+        }
+        // Days carried over from an earlier plan the supplier paid over early (see remainingDays).
+        if (subscription.getCarryOverDays() > 0) {
+            periodEnd = periodEnd.plus(subscription.getCarryOverDays(), ChronoUnit.DAYS);
         }
 
         Instant now = Instant.now();

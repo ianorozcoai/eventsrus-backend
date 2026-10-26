@@ -49,6 +49,8 @@ class RevenueCatWebhookServiceTest {
     private VendorReferralService vendorReferralService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private VendorPlanService vendorPlanService;
 
     private final JsonMapper json = JsonMapper.builder().build();
     private RevenueCatWebhookService service;
@@ -58,7 +60,7 @@ class RevenueCatWebhookServiceTest {
     void setUp() {
         service = new RevenueCatWebhookService(
                 userRepository, vendorSubscriptionRepository, vendorSubscriptionEventRepository,
-                vendorBillingHistoryService, vendorReferralService, notificationService);
+                vendorBillingHistoryService, vendorReferralService, notificationService, vendorPlanService);
         user = new User();
         user.setId(USER_ID);
     }
@@ -114,6 +116,45 @@ class RevenueCatWebhookServiceTest {
                 eq(Instant.ofEpochMilli(PURCHASED)), eq(BillingSource.GOOGLE_PLAY));
         verify(vendorReferralService).convertIfPending(USER_ID);
         verify(vendorSubscriptionEventRepository).save(any(VendorSubscriptionEvent.class));
+    }
+
+    @Test
+    void initialPurchaseKeepsDaysLeftOnThePreviousPlanAsCarryOver() {
+        knownUserNoRow();
+        when(vendorPlanService.remainingDays(USER_ID)).thenReturn(40);
+        when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.handle(event("evt-co", "INITIAL_PURCHASE", PURCHASE_FIELDS));
+
+        ArgumentCaptor<VendorSubscription> saved = ArgumentCaptor.forClass(VendorSubscription.class);
+        verify(vendorSubscriptionRepository).save(saved.capture());
+        assertThat(saved.getValue().getCarryOverDays()).isEqualTo(40);
+    }
+
+    @Test
+    void renewalNeverChangesCarryOver() {
+        VendorSubscription row = activeRow(Instant.ofEpochMilli(PURCHASED + 1000));
+        row.setCarryOverDays(12);
+        knownUserWithRow(row);
+        when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.handle(event("evt-co2", "RENEWAL", PURCHASE_FIELDS));
+
+        assertThat(row.getCarryOverDays()).isEqualTo(12);
+        verify(vendorPlanService, never()).remainingDays(any());
+    }
+
+    @Test
+    void repeatedInitialPurchaseWhileThePlayPlanStillRunsNeverCountsTheSameDaysTwice() {
+        VendorSubscription row = activeRow(Instant.now().plusSeconds(30L * 86400));
+        row.setCarryOverDays(5);
+        knownUserWithRow(row);
+        when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.handle(event("evt-co3", "INITIAL_PURCHASE", PURCHASE_FIELDS));
+
+        assertThat(row.getCarryOverDays()).isEqualTo(5);
+        verify(vendorPlanService, never()).remainingDays(any());
     }
 
     @Test

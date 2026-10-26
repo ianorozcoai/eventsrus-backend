@@ -218,13 +218,38 @@ class VendorSubscriptionServiceTest {
                     .thenReturn(Optional.empty());
             when(vendorPlanService.getEffectivePlan(1L))
                     .thenReturn(new VendorPlanService.EffectivePlan(PlanTier.PRO, Instant.now().plusSeconds(86400), false, false, false, null, BillingSource.PAYPAL));
+            when(vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(1L))
+                    .thenReturn(Optional.of(VendorSubscription.builder().user(vendorUser()).plan(PlanTier.PRO)
+                            .billingSource(BillingSource.PAYPAL).status(SubscriptionStatus.ACTIVE).build()));
 
             MockMultipartFile screenshot = new MockMultipartFile("screenshot", "gcash.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
+            // A PayPal plan charges by itself, so paying again would double-charge.
             assertThatThrownBy(() -> vendorSubscriptionService.submitGcashPayment(EMAIL, BillingCycle.QUARTERLY, screenshot, null))
                     .isInstanceOf(SubscriptionConflictException.class);
 
             verify(vendorSubscriptionRepository, never()).save(any());
+        }
+
+        @Test
+        void payingEarlyOnAFreePromoKeepsTheDaysLeftAsCarryOver() {
+            stubStatusResponseDependencies();
+            when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(vendorUser()));
+            when(vendorPlanService.getEffectivePlan(1L))
+                    .thenReturn(new VendorPlanService.EffectivePlan(PlanTier.PRO, Instant.now().plusSeconds(60L * 86400), false, false, false, null, BillingSource.FREE_GRANT));
+            when(vendorPlanService.remainingDays(1L)).thenReturn(60);
+            when(vendorSubscriptionRepository.findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(1L, BillingSource.GCASH))
+                    .thenReturn(Optional.empty());
+            when(s3UploadService.upload(any(), any(), any()))
+                    .thenReturn(new S3UploadService.UploadResult("vendors/1/subscription-payment-screenshot-abc.jpg", null));
+            when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+            MockMultipartFile screenshot = new MockMultipartFile("screenshot", "gcash.jpg", "image/jpeg", new byte[]{1, 2, 3});
+            vendorSubscriptionService.submitGcashPayment(EMAIL, BillingCycle.QUARTERLY, screenshot, null);
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getCarryOverDays()).isEqualTo(60);
         }
 
         @Test

@@ -267,6 +267,17 @@ public class VendorSubscriptionService {
      * on DESC would let an older, unrelated row with a real date wrongly
      * outrank it there (the same class of bug V49 fixed for submission).
      */
+    /** True while the supplier's live plan is a PayPal subscription that charges again by itself. */
+    private boolean renewsAutomatically(Long userId) {
+        VendorPlanService.EffectivePlan plan = vendorPlanService.getEffectivePlan(userId);
+        if (plan.plan() == null || plan.inGracePeriod()) {
+            return false;
+        }
+        return vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
+                .map(sub -> sub.getBillingSource() == BillingSource.PAYPAL && sub.getStatus() == SubscriptionStatus.ACTIVE)
+                .orElse(false);
+    }
+
     private Optional<VendorSubscription> findGcashSubscription(Long userId) {
         return vendorSubscriptionRepository.findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(userId, BillingSource.GCASH);
     }
@@ -326,12 +337,13 @@ public class VendorSubscriptionService {
         if (existingGcash.isPresent() && existingGcash.get().getStatus() == SubscriptionStatus.PAYMENT_VERIFICATION) {
             throw new SubscriptionConflictException("Your previous GCash payment is still awaiting review.");
         }
-        // A rejected (or nonexistent) GCash row leaves plan() null at this
-        // point, so this only trips on a genuinely different live plan
-        // (PayPal, promo, or an already-verified GCash subscription).
-        if (vendorPlanService.getEffectivePlan(user.getId()).plan() != null) {
-            throw new SubscriptionConflictException("You already have an active or pending subscription.");
+        // Paying early is allowed (a promo, or an earlier GCash payment, simply gets the new days added
+        // on top). Only a plan that renews by itself (PayPal) blocks it - paying twice would double-charge.
+        if (renewsAutomatically(user.getId())) {
+            throw new SubscriptionConflictException("Your plan renews automatically, so there is nothing to pay yet.");
         }
+        // Days left on the current plan, read before the row below is overwritten.
+        int carryOverDays = vendorPlanService.remainingDays(user.getId());
 
         String key = s3UploadService
                 .upload(screenshot, "vendors/" + user.getId() + "/subscription-payment-screenshot", S3UploadService.Visibility.PRIVATE)
@@ -346,6 +358,7 @@ public class VendorSubscriptionService {
         subscription.setStatus(SubscriptionStatus.PAYMENT_VERIFICATION);
         subscription.setCurrentPeriodStart(now);
         subscription.setCurrentPeriodEnd(periodEnd);
+        subscription.setCarryOverDays(carryOverDays);
         subscription.setPaymentScreenshotKey(key);
         subscription.setPaymentScreenshotUploadedAt(now);
         // A fresh submission supersedes any prior rejection - the reason no
@@ -386,6 +399,11 @@ public class VendorSubscriptionService {
 
         Instant now = Instant.now();
         Instant periodEnd = now.plus(daysFor(subscription.getBillingCycle()), ChronoUnit.DAYS);
+        // The supplier kept using the old days while this payment was under review, so take those off.
+        if (subscription.getCurrentPeriodStart() != null) {
+            long usedDays = ChronoUnit.DAYS.between(subscription.getCurrentPeriodStart(), now);
+            subscription.setCarryOverDays((int) Math.max(0, subscription.getCarryOverDays() - usedDays));
+        }
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setCurrentPeriodStart(now);
         subscription.setCurrentPeriodEnd(periodEnd);
@@ -518,6 +536,9 @@ public class VendorSubscriptionService {
 
         subscription.setStatus(newStatus);
         if (justActivated) {
+            // Paying early: whatever the supplier still had left is added on top of this plan's own end.
+            // Read before the start date below is set, which would make this row the "current" plan.
+            subscription.setCarryOverDays(vendorPlanService.remainingDays(subscription.getUser().getId()));
             subscription.setCurrentPeriodStart(Instant.now());
         }
         if (details.nextBillingTime() != null) {

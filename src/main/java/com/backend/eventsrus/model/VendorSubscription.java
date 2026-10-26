@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -37,6 +38,14 @@ public class VendorSubscription extends BaseEntity {
 
     @Column(name = "current_period_end")
     private Instant currentPeriodEnd;
+
+    /**
+     * Whole days the supplier still had on their previous plan when this one started (pay-early).
+     * VendorPlanService adds them to currentPeriodEnd, so the new plan's days stack on the old ones.
+     */
+    @Builder.Default
+    @Column(name = "carry_over_days", nullable = false)
+    private int carryOverDays = 0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
