@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SubscriptionReminderRepository extends JpaRepository<SubscriptionReminder, Long> {
 
-    boolean existsByUserIdAndAccessEndDateAndDaysBefore(Long userId, LocalDate accessEndDate, int daysBefore);
+    boolean existsByUserIdAndAccessEndDateAndLeadDays(Long userId, LocalDate accessEndDate, int leadDays);
 }

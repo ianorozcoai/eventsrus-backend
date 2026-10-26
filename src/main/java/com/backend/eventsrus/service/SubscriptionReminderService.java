@@ -94,7 +94,7 @@ public class SubscriptionReminderService {
             return false;
         }
         LocalDate endDate = accessEnd.atZone(MANILA).toLocalDate();
-        if (subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndDaysBefore(userId, endDate, bucket)) {
+        if (subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(userId, endDate, bucket)) {
             return false;
         }
 
@@ -103,7 +103,7 @@ public class SubscriptionReminderService {
             return false;
         }
         subscriptionReminderRepository.save(SubscriptionReminder.builder()
-                .userId(userId).accessEndDate(endDate).daysBefore(bucket).build());
+                .userId(userId).accessEndDate(endDate).leadDays(bucket).build());
         return true;
     }
 

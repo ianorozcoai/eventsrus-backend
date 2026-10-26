@@ -90,7 +90,7 @@ class SubscriptionReminderServiceTest {
     @Test
     void aTrialSupplierGetsTheFourteenDayTextOnceAndItIsRecorded() {
         plan(BillingSource.FREE_GRANT, SubscriptionStatus.ACTIVE, true, inDays(13.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndDaysBefore(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(true);
 
@@ -101,14 +101,14 @@ class SubscriptionReminderServiceTest {
         assertThat(message.getValue()).contains("free trial ends in 14 days");
         ArgumentCaptor<SubscriptionReminder> saved = ArgumentCaptor.forClass(SubscriptionReminder.class);
         verify(subscriptionReminderRepository).save(saved.capture());
-        assertThat(saved.getValue().getDaysBefore()).isEqualTo(14);
+        assertThat(saved.getValue().getLeadDays()).isEqualTo(14);
         assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
     }
 
     @Test
     void theSameReminderIsNeverSentTwice() {
         plan(BillingSource.GCASH, SubscriptionStatus.ACTIVE, false, inDays(6.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndDaysBefore(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
                 .thenReturn(true);
 
         assertThat(service.runOnce()).isZero();
@@ -119,7 +119,7 @@ class SubscriptionReminderServiceTest {
     @Test
     void aReminderIsNotRecordedWhenTheSmsDidNotGoOut() {
         plan(BillingSource.GCASH, SubscriptionStatus.ACTIVE, false, inDays(2.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndDaysBefore(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(false);
 
@@ -149,7 +149,7 @@ class SubscriptionReminderServiceTest {
     @Test
     void aCancelledGooglePlayPlanIsRemindedBecauseItWillNotRenew() {
         plan(BillingSource.GOOGLE_PLAY, SubscriptionStatus.CANCELLED, false, inDays(2));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndDaysBefore(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), contains("PRO access ends in"), any())).thenReturn(true);
 

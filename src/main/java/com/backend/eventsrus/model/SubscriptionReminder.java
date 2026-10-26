@@ -34,7 +34,7 @@ public class SubscriptionReminder {
     private LocalDate accessEndDate;
 
     @Column(name = "days_before", nullable = false)
-    private int daysBefore;
+    private int leadDays;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
