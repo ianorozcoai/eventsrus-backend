@@ -1,6 +1,7 @@
 package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
+import com.backend.eventsrus.dto.AdminExtendAccessResponse;
 import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
 import com.backend.eventsrus.dto.AuthResponse;
@@ -9,6 +10,7 @@ import com.backend.eventsrus.enums.ReferralStatus;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.repository.UserRepository;
+import com.backend.eventsrus.service.AdminSubscriptionExtensionService;
 import com.backend.eventsrus.service.AuthService;
 import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
@@ -42,6 +44,7 @@ public class AdminVendorController {
     private final VendorReferralService vendorReferralService;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final AdminSubscriptionExtensionService adminSubscriptionExtensionService;
 
     /** The review queue - every vendor, regardless of verification state. */
     @GetMapping
@@ -135,6 +138,18 @@ public class AdminVendorController {
     @PostMapping("/{userId}/unmark-top")
     public void unmarkTop(@PathVariable Long userId) {
         userService.setTopVendor(userId, false);
+    }
+
+    /**
+     * Support tool: give one supplier more access time. The days are added on top of where their access
+     * ends now (or from today if it already ended) - see AdminSubscriptionExtensionService. adminUsername is
+     * the same plain audit label #verify uses.
+     */
+    @PostMapping("/{userId}/extend-subscription")
+    public AdminExtendAccessResponse extendSubscription(
+            @PathVariable Long userId, @RequestParam int days, @RequestParam String reason,
+            @RequestParam(required = false) String adminUsername) {
+        return adminSubscriptionExtensionService.extend(userId, days, reason, adminUsername);
     }
 
     /** Whichever referral (if any) this vendor was the referred party on - null if they arrived unreferred. */

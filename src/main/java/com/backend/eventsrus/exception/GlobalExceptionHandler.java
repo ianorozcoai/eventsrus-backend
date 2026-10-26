@@ -128,6 +128,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidAccessExtensionException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidAccessExtension(
+            InvalidAccessExtensionException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(TooManyAttachmentsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyAttachments(
             TooManyAttachmentsException ex, HttpServletRequest request) {
