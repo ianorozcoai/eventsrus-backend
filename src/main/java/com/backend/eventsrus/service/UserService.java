@@ -250,15 +250,20 @@ public class UserService {
         // Javadoc.
         vendorReferralService.attribute(user, request.getReferralCode());
 
-        // Only a valid promo code grants the full free trial automatically -
-        // otherwise no subscription row is created here at all, and the
-        // vendor is left in VendorPlanService's "never subscribed" state
-        // until they pay via PayPal or GCash (see VendorSubscriptionService
-        // #submitGcashPayment), which is what drives the required
-        // plan-selection paywall on the web dashboard.
-        if (promoApplied && !vendorSubscriptionRepository.existsByUserId(user.getId())) {
+        // Every new vendor starts on a free PRO trial so they can set up their
+        // account before choosing a plan: the full promo trial (VENDOR_TRIAL_DAYS)
+        // with a valid promo code, otherwise the short default one
+        // (VENDOR_DEFAULT_TRIAL_DAYS, 7 unless an admin changes it; 0 = none, and
+        // then the vendor is left in VendorPlanService's "never subscribed"
+        // state, which drives the required plan-selection paywall until they pay
+        // via PayPal, GCash or Google Play). The paywall only returns once this
+        // trial (and the grace period after it) has run out.
+        int trialDays = promoApplied
+                ? systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS)
+                : systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS);
+        if (trialDays > 0 && !vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
-            Instant trialEnd = now.plus(systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS), ChronoUnit.DAYS);
+            Instant trialEnd = now.plus(trialDays, ChronoUnit.DAYS);
             VendorSubscription subscription = vendorSubscriptionRepository.save(
                     VendorSubscription.builder()
                             .user(user)

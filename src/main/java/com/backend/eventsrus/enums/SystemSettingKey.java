@@ -17,6 +17,11 @@ public enum SystemSettingKey {
             "Vendor free trial length (days)",
             "How many days of full access a new vendor gets before needing to subscribe.",
             "180"),
+    VENDOR_DEFAULT_TRIAL_DAYS(
+            "vendor-default-trial-days",
+            "New vendor default free trial (days)",
+            "Free PRO days every new vendor gets at onboarding when they do NOT enter a promo code, so they can set up their account before choosing a plan. 0 turns it off (new vendors must choose a plan right away).",
+            "7"),
     SUBSCRIPTION_WARNING_DAYS(
             "subscription-warning-days",
             "Subscription expiry warning window (days)",

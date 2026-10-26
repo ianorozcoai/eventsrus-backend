@@ -23,6 +23,7 @@ import com.backend.eventsrus.repository.EventRepository;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.repository.VendorProfileRepository;
 import com.backend.eventsrus.repository.VendorSubscriptionRepository;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -263,10 +264,31 @@ class UserServiceTest {
         }
 
         @Test
-        void doesNotGrantSubscriptionWhenNoPromoCodeGiven() {
+        void grantsTheShortDefaultTrialWhenNoPromoCodeGiven() {
             when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
             when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS)).thenReturn(7);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBillingSource()).isEqualTo(BillingSource.FREE_GRANT);
+            assertThat(captor.getValue().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+            assertThat(captor.getValue().getCurrentPeriodEnd())
+                    .isAfter(Instant.now().plusSeconds(6L * 86400))
+                    .isBefore(Instant.now().plusSeconds(8L * 86400));
+            verify(vendorBillingHistoryService).recordFreeGrant(any(), any(), any(), eq(BillingSource.FREE_GRANT));
+        }
+
+        @Test
+        void grantsNothingWhenTheDefaultTrialIsTurnedOffAndNoPromoGiven() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS)).thenReturn(0);
 
             userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
 
