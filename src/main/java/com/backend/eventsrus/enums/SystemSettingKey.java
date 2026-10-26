@@ -25,8 +25,8 @@ public enum SystemSettingKey {
     SUBSCRIPTION_WARNING_DAYS(
             "subscription-warning-days",
             "Subscription expiry warning window (days)",
-            "How many days before a vendor's subscription expires the renewal prompt starts showing.",
-            "30"),
+            "How many days before a vendor's subscription expires the renewal prompt starts showing (also the start of the free-trial reminder, which is fixed at 14 days).",
+            "14"),
     SUBSCRIPTION_GRACE_PERIOD_DAYS(
             "subscription-grace-period-days",
             "Subscription grace period (days)",
