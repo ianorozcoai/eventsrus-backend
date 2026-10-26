@@ -83,8 +83,8 @@ public class AdminSubscriptionExtensionService {
             Instant effectiveEnd = latest.getCurrentPeriodEnd().plus(latest.getCarryOverDays(), ChronoUnit.DAYS);
             long extra = days;
             if (effectiveEnd.isBefore(now)) {
-                // Already ended: count the new days from today, not from the old end date.
-                extra += daysBetweenRoundedUp(effectiveEnd, now);
+                // Already ended: count the new days from today (not the old end date), to the nearest whole day.
+                extra += daysBetweenRounded(effectiveEnd, now);
             }
             latest.setCarryOverDays(latest.getCarryOverDays() + (int) extra);
             row = vendorSubscriptionRepository.save(latest);
@@ -116,8 +116,8 @@ public class AdminSubscriptionExtensionService {
                 .build();
     }
 
-    private static long daysBetweenRoundedUp(Instant from, Instant to) {
+    private static long daysBetweenRounded(Instant from, Instant to) {
         long minutes = Duration.between(from, to).toMinutes();
-        return (minutes + 1439) / 1440;
+        return (minutes + 720) / 1440;
     }
 }

@@ -91,14 +91,14 @@ class AdminSubscriptionExtensionServiceTest {
 
     @Test
     void anAlreadyEndedPlanCountsTheNewDaysFromTodayNotFromTheOldEndDate() {
-        // Ended 20 days ago: 20 days just to get back to today, then the 15 requested ones.
+        // Ended 20 days ago: 20 days just to get back to today (nearest whole day), then the 15 requested ones.
         VendorSubscription r = row(BillingSource.GCASH, SubscriptionStatus.ACTIVE,
                 Instant.now().minus(20, ChronoUnit.DAYS).minusSeconds(60), 0);
         effectiveEndWillBe(Instant.now().plus(15, ChronoUnit.DAYS));
 
         service.extend(VENDOR_ID, 15, "Payment problem being fixed", "ian");
 
-        assertThat(r.getCarryOverDays()).isEqualTo(36);
+        assertThat(r.getCarryOverDays()).isEqualTo(35);
     }
 
     @Test
