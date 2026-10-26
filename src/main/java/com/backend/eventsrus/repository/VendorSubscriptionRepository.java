@@ -31,6 +31,10 @@ public interface VendorSubscriptionRepository extends JpaRepository<VendorSubscr
 
     Optional<VendorSubscription> findByPaypalSubscriptionId(String paypalSubscriptionId);
 
+    /** Suppliers with any plan row ending after {@code since} - the daily renewal-reminder job's candidates. */
+    @Query("select distinct vs.user.id from VendorSubscription vs where vs.currentPeriodEnd is not null and vs.currentPeriodEnd > :since")
+    List<Long> findUserIdsWithPeriodEndAfter(@Param("since") java.time.Instant since);
+
     // Plain "ORDER BY current_period_start DESC" would let Postgres' default
     // NULLS FIRST silently win here - a row whose period was cleared back to
     // null (rejectGcashPayment - see VendorSubscriptionService) would always

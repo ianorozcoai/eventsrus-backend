@@ -72,6 +72,20 @@ public class SmsService {
                 SmsTriggerType.VENDOR_AMENDMENT_PROPOSED, null, "BOOKING", bookingId);
     }
 
+    /**
+     * Renewal reminder (see SubscriptionReminderService). Synchronous and returns whether the SMS
+     * really went out, so the caller only marks the reminder as sent when it did: while SMS is
+     * switched off, or the supplier has no mobile number, nothing is sent and nothing is logged,
+     * and the reminder is tried again on the next daily run.
+     */
+    public boolean sendSubscriptionReminder(User vendor, String message, Long subscriptionId) {
+        if (!enabled || vendor.getMobileNumber() == null || vendor.getMobileNumber().isBlank()) {
+            return false;
+        }
+        return sendAndLog(vendor.getMobileNumber(), message, SmsTriggerType.SUBSCRIPTION_REMINDER, null,
+                "SUBSCRIPTION", subscriptionId).isSuccess();
+    }
+
     /** Synchronous (unlike the trigger methods above) - the admin UI needs a real success/failure right away. */
     public SmsLogResponse sendAdhoc(String adminEmail, String number, String message) {
         if (!enabled) {
