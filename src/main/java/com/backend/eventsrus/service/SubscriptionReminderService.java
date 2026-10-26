@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.enums.BillingSource;
+import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SubscriptionStatus;
 import com.backend.eventsrus.model.SubscriptionReminder;
@@ -22,15 +23,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Daily renewal reminders by SMS (Semaphore): one text 14 days, one 7 days and one 3 days before a
- * supplier's access ends - never every day. "Access ends" is what the supplier is told: the end of
- * the free trial / grace period, or the plan's end date.
+ * Daily renewal reminders: one 14 days, one 7 days and one 3 days before a supplier's access ends -
+ * never every day - each as an in-app/push notification AND an SMS (Semaphore). "Access ends" is what
+ * the supplier is told: the end of the free trial / grace period, or the plan's end date.
  *
- * Skipped for suppliers whose plan renews by itself (an active PayPal or Google Play subscription),
- * for GCash payments still under review, and for suppliers without a mobile number. Nothing is sent
- * (and nothing is marked as sent) while app.sms-enabled is false, so the reminders start the day SMS
- * is switched on. Sent reminders are recorded per (supplier, end date, days before) - paying moves
- * the end date, which starts the reminders again for the new date.
+ * Skipped for suppliers whose plan renews by itself (an active PayPal or Google Play subscription)
+ * and for GCash payments still under review. The SMS also needs a mobile number and
+ * app.sms-enabled=true (nothing is sent or marked as sent otherwise); the notification does not.
+ * Sent reminders are recorded per (supplier, end date, days before, channel) - paying moves the
+ * end date, which starts the reminders again for the new date.
  */
 @Slf4j
 @Service
@@ -45,6 +46,10 @@ public class SubscriptionReminderService {
     private final UserRepository userRepository;
     private final VendorPlanService vendorPlanService;
     private final SmsService smsService;
+    private final NotificationService notificationService;
+
+    private static final String CHANNEL_SMS = "SMS";
+    private static final String CHANNEL_PUSH = "PUSH";
 
     /** @return how many reminder SMS were sent. */
     public int runOnce() {
@@ -94,17 +99,44 @@ public class SubscriptionReminderService {
             return false;
         }
         LocalDate endDate = accessEnd.atZone(MANILA).toLocalDate();
-        if (subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(userId, endDate, bucket)) {
-            return false;
-        }
+        boolean freeTrial = plan.billingSource() == BillingSource.FREE_GRANT;
 
-        String message = messageFor(plan.billingSource() == BillingSource.FREE_GRANT, daysLeft, endDate);
-        if (!smsService.sendSubscriptionReminder(user, message, latest.getId())) {
-            return false;
+        // Two channels, each tracked on its own so a failed or switched-off SMS never blocks the
+        // in-app/push notification, and the other way round.
+        boolean sent = false;
+        if (!alreadySent(userId, endDate, bucket, CHANNEL_PUSH)) {
+            notificationService.notify(user, NotificationType.SUBSCRIPTION_RENEWAL_REMINDER,
+                    titleFor(freeTrial, daysLeft), bodyFor(freeTrial), "SUBSCRIPTION", latest.getId());
+            record(userId, endDate, bucket, CHANNEL_PUSH);
+            sent = true;
         }
+        if (!alreadySent(userId, endDate, bucket, CHANNEL_SMS)
+                && smsService.sendSubscriptionReminder(user, messageFor(freeTrial, daysLeft, endDate), latest.getId())) {
+            record(userId, endDate, bucket, CHANNEL_SMS);
+            sent = true;
+        }
+        return sent;
+    }
+
+    private boolean alreadySent(Long userId, LocalDate endDate, int bucket, String channel) {
+        return subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(
+                userId, endDate, bucket, channel);
+    }
+
+    private void record(Long userId, LocalDate endDate, int bucket, String channel) {
         subscriptionReminderRepository.save(SubscriptionReminder.builder()
-                .userId(userId).accessEndDate(endDate).leadDays(bucket).build());
-        return true;
+                .userId(userId).accessEndDate(endDate).leadDays(bucket).channel(channel).build());
+    }
+
+    static String titleFor(boolean freeTrial, int daysLeft) {
+        String days = daysLeft + (daysLeft == 1 ? " day" : " days");
+        return freeTrial ? "Your free trial ends in " + days : "Your PRO access ends in " + days;
+    }
+
+    static String bodyFor(boolean freeTrial) {
+        return freeTrial
+                ? "Choose a plan to keep your supplier tools."
+                : "Renew to keep quotations, chat and bookings working.";
     }
 
     /** A plan that charges again by itself needs no renewal reminder. */

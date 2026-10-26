@@ -36,6 +36,10 @@ public class SubscriptionReminder {
     @Column(name = "days_before", nullable = false)
     private int leadDays;
 
+    /** SMS or PUSH - each channel is tracked separately. */
+    @Column(name = "channel", nullable = false, length = 8)
+    private String channel;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

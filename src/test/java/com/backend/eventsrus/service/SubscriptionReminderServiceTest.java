@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.backend.eventsrus.enums.BillingSource;
+import com.backend.eventsrus.enums.NotificationType;
 import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SubscriptionStatus;
@@ -47,6 +50,8 @@ class SubscriptionReminderServiceTest {
     private VendorPlanService vendorPlanService;
     @Mock
     private SmsService smsService;
+    @Mock
+    private NotificationService notificationService;
 
     private SubscriptionReminderService service;
     private User vendor;
@@ -55,7 +60,7 @@ class SubscriptionReminderServiceTest {
     void setUp() {
         service = new SubscriptionReminderService(
                 vendorSubscriptionRepository, subscriptionReminderRepository, userRepository,
-                vendorPlanService, smsService);
+                vendorPlanService, smsService, notificationService);
         vendor = User.builder().id(USER_ID).role(Role.VENDOR).mobileNumber("09171234567").build();
         lenient().when(vendorSubscriptionRepository.findUserIdsWithPeriodEndAfter(any())).thenReturn(List.of(USER_ID));
         lenient().when(userRepository.findById(USER_ID)).thenReturn(Optional.of(vendor));
@@ -90,7 +95,7 @@ class SubscriptionReminderServiceTest {
     @Test
     void aTrialSupplierGetsTheFourteenDayTextOnceAndItIsRecorded() {
         plan(BillingSource.FREE_GRANT, SubscriptionStatus.ACTIVE, true, inDays(13.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(true);
 
@@ -100,32 +105,73 @@ class SubscriptionReminderServiceTest {
         verify(smsService).sendSubscriptionReminder(any(), message.capture(), any());
         assertThat(message.getValue()).contains("free trial ends in 14 days");
         ArgumentCaptor<SubscriptionReminder> saved = ArgumentCaptor.forClass(SubscriptionReminder.class);
-        verify(subscriptionReminderRepository).save(saved.capture());
-        assertThat(saved.getValue().getLeadDays()).isEqualTo(14);
-        assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
+        verify(subscriptionReminderRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(saved.getAllValues()).extracting(SubscriptionReminder::getChannel).containsExactlyInAnyOrder("SMS", "PUSH");
+        assertThat(saved.getAllValues()).allSatisfy(r -> {
+            assertThat(r.getLeadDays()).isEqualTo(14);
+            assertThat(r.getUserId()).isEqualTo(USER_ID);
+        });
+        ArgumentCaptor<String> title = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).notify(
+                any(), org.mockito.ArgumentMatchers.eq(NotificationType.SUBSCRIPTION_RENEWAL_REMINDER),
+                title.capture(), any(), org.mockito.ArgumentMatchers.eq("SUBSCRIPTION"), any());
+        assertThat(title.getValue()).isEqualTo("Your free trial ends in 14 days");
     }
 
     @Test
     void theSameReminderIsNeverSentTwice() {
         plan(BillingSource.GCASH, SubscriptionStatus.ACTIVE, false, inDays(6.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))
                 .thenReturn(true);
 
         assertThat(service.runOnce()).isZero();
 
         verify(smsService, never()).sendSubscriptionReminder(any(), any(), any());
+        verify(notificationService, never()).notify(any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void aReminderIsNotRecordedWhenTheSmsDidNotGoOut() {
         plan(BillingSource.GCASH, SubscriptionStatus.ACTIVE, false, inDays(2.5));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(false);
 
-        assertThat(service.runOnce()).isZero();
+        // The notification still goes out (and is recorded) - only the SMS is retried tomorrow.
+        assertThat(service.runOnce()).isEqualTo(1);
 
-        verify(subscriptionReminderRepository, never()).save(any());
+        ArgumentCaptor<SubscriptionReminder> saved = ArgumentCaptor.forClass(SubscriptionReminder.class);
+        verify(subscriptionReminderRepository).save(saved.capture());
+        assertThat(saved.getValue().getChannel()).isEqualTo("PUSH");
+    }
+
+    @Test
+    void theNotificationIsSentOnceEvenWhenSmsIsTurnedOff() {
+        plan(BillingSource.FREE_GRANT, SubscriptionStatus.ACTIVE, true, inDays(6.5));
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), eq("PUSH")))
+                .thenReturn(false);
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), eq("SMS")))
+                .thenReturn(false);
+        when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(false);
+
+        service.runOnce();
+
+        verify(notificationService).notify(any(), eq(NotificationType.SUBSCRIPTION_RENEWAL_REMINDER), any(), any(), any(), any());
+    }
+
+    @Test
+    void anAlreadyNotifiedSupplierGetsOnlyTheMissingSms() {
+        plan(BillingSource.GCASH, SubscriptionStatus.ACTIVE, false, inDays(2.5));
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), eq("PUSH")))
+                .thenReturn(true);
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), eq("SMS")))
+                .thenReturn(false);
+        when(smsService.sendSubscriptionReminder(any(), any(), any())).thenReturn(true);
+
+        assertThat(service.runOnce()).isEqualTo(1);
+
+        verify(notificationService, never()).notify(any(), any(), any(), any(), any(), any());
+        verify(smsService).sendSubscriptionReminder(any(), any(), any());
     }
 
     @Test
@@ -149,7 +195,7 @@ class SubscriptionReminderServiceTest {
     @Test
     void aCancelledGooglePlayPlanIsRemindedBecauseItWillNotRenew() {
         plan(BillingSource.GOOGLE_PLAY, SubscriptionStatus.CANCELLED, false, inDays(2));
-        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDays(anyLong(), any(), anyInt()))
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))
                 .thenReturn(false);
         when(smsService.sendSubscriptionReminder(any(), contains("PRO access ends in"), any())).thenReturn(true);
 
