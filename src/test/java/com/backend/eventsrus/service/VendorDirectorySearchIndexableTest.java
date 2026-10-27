@@ -77,6 +77,12 @@ class VendorDirectorySearchIndexableTest {
     }
 
     @Test
+    void seededFakeSuppliersAreNeverIndexable() {
+        profile.getUser().setFakeAccount(true);
+        assertThat(service.isSearchIndexable(profile, true)).isFalse();
+    }
+
+    @Test
     void newProfilesAreOptedInByDefault() {
         assertThat(new VendorProfile().isSearchVisible()).isTrue();
     }

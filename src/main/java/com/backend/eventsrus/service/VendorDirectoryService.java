@@ -166,7 +166,8 @@ public class VendorDirectoryService {
      * Thin or lapsed pages stay out of Google.
      */
     boolean isSearchIndexable(VendorProfile profile, boolean hasPackageOrPhoto) {
-        if (!profile.isSearchVisible() || profile.getUser().getDeletedAt() != null) {
+        // Seeded placeholder suppliers (User.fakeAccount) are never offered to Google.
+        if (!profile.isSearchVisible() || profile.getUser().getDeletedAt() != null || profile.getUser().isFakeAccount()) {
             return false;
         }
         if (profile.getDescription() == null || profile.getDescription().trim().length() < MIN_INDEXABLE_DESCRIPTION
