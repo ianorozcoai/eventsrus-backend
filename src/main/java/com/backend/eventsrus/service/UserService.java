@@ -370,7 +370,9 @@ public class UserService {
                         user.getLastName(),
                         user.getEmail(),
                         user.getMobileNumber(),
-                        user.getCreatedAt()))
+                        user.getCreatedAt(),
+                        user.getSignupReminderCount(),
+                        user.getSignupReminderLastSentAt()))
                 .toList();
     }
 
@@ -742,7 +744,9 @@ public class UserService {
             String lastName,
             String email,
             String mobileNumber,
-            Instant signedUpAt) {
+            Instant signedUpAt,
+            int reminderCount,
+            Instant lastReminderAt) {
     }
 
     // businessPermit is gone - legal documents (any number of them) are now

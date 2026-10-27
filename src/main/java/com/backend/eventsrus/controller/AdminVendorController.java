@@ -12,6 +12,7 @@ import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.service.AdminSubscriptionExtensionService;
 import com.backend.eventsrus.service.AuthService;
+import com.backend.eventsrus.service.IncompleteSignupReminderService;
 import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
 import com.backend.eventsrus.service.VendorReferralService;
@@ -44,6 +45,7 @@ public class AdminVendorController {
     private final VendorReferralService vendorReferralService;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final IncompleteSignupReminderService incompleteSignupReminderService;
     private final AdminSubscriptionExtensionService adminSubscriptionExtensionService;
 
     /** The review queue - every vendor, regardless of verification state. */
@@ -92,8 +94,22 @@ public class AdminVendorController {
                         .email(v.email())
                         .mobileNumber(v.mobileNumber())
                         .signedUpAt(v.signedUpAt())
+                        .reminderCount(v.reminderCount())
+                        .lastReminderAt(v.lastReminderAt())
                         .build())
                 .toList();
+    }
+
+    /** Email one incomplete sign-up a friendly "finish your registration" reminder (admin button). */
+    @PostMapping("/incomplete-signups/{userId}/reminder-email")
+    public IncompleteSignupReminderService.Result sendIncompleteSignupReminder(@PathVariable Long userId) {
+        return incompleteSignupReminderService.sendTo(userId);
+    }
+
+    /** Email every incomplete sign-up that is allowed another reminder (admin "email all" button). */
+    @PostMapping("/incomplete-signups/reminder-emails")
+    public List<IncompleteSignupReminderService.Result> sendAllIncompleteSignupReminders() {
+        return incompleteSignupReminderService.sendToAll();
     }
 
     @GetMapping("/{userId}/verification-documents")

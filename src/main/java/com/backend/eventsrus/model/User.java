@@ -113,6 +113,15 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean trialWelcomePending = false;
 
+    // Admin-sent "finish your sign-up" email (see IncompleteSignupReminderService): when the last one went out and
+    // how many have been sent, so nobody is emailed too often or too many times.
+    @Column(name = "signup_reminder_last_sent_at")
+    private Instant signupReminderLastSentAt;
+
+    @Column(name = "signup_reminder_count", nullable = false)
+    @Builder.Default
+    private int signupReminderCount = 0;
+
     // Account deletion (see AccountDeletionService): requested-at starts the
     // 30-day grace period and is cleared by signing in again; deleted-at is
     // set once the account has been scrubbed for good.

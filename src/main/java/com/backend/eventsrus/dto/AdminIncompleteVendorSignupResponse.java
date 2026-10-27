@@ -21,4 +21,7 @@ public class AdminIncompleteVendorSignupResponse {
     private String email;
     private String mobileNumber;
     private Instant signedUpAt;
+    /** How many "finish your sign-up" emails have gone to this person, and when the last one did. */
+    private int reminderCount;
+    private Instant lastReminderAt;
 }
