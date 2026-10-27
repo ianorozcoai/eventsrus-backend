@@ -35,6 +35,7 @@ public class VendorDirectoryService {
     private final VendorPackageGroupRepository vendorPackageGroupRepository;
     private final VendorSocialMediaLinkRepository vendorSocialMediaLinkRepository;
     private final ReviewService reviewService;
+    private final VendorPlanService vendorPlanService;
 
     @Transactional(readOnly = true)
     public VendorPublicProfileResponse getPublicProfile(String slug) {
@@ -152,6 +153,47 @@ public class VendorDirectoryService {
                 .reviews(reviewService.listPublic(vendorUserId))
                 .averageRating(ratings.averageRating())
                 .reviewCount(ratings.reviewCount())
+                .searchIndexable(isSearchIndexable(profile, !packages.isEmpty() || !galleryImages.isEmpty()))
                 .build();
+    }
+
+    /**
+     * Whether search engines may list a storefront: the supplier has not opted out, the page has real content
+     * (a description, a city, and at least one active package or photo) and the supplier has an active plan.
+     * Thin or lapsed pages stay out of Google.
+     */
+    boolean isSearchIndexable(VendorProfile profile, boolean hasPackageOrPhoto) {
+        if (!profile.isSearchVisible() || profile.getUser().getDeletedAt() != null) {
+            return false;
+        }
+        if (isBlank(profile.getDescription()) || isBlank(profile.getCity()) || isBlank(profile.getBusinessName())) {
+            return false;
+        }
+        if (!hasPackageOrPhoto) {
+            return false;
+        }
+        return vendorPlanService.getEffectivePlan(profile.getUser().getId()).plan() != null;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** One line of the public sitemap: where the storefront lives and when it last changed. */
+    public record SitemapEntry(String slug, Instant lastModified) {}
+
+    /** Every storefront that is search-indexable, for the website's sitemap.xml. */
+    @Transactional(readOnly = true)
+    public List<SitemapEntry> listSitemapEntries() {
+        return vendorProfileRepository.findAll().stream()
+                .filter(p -> p.getSlug() != null && !p.getSlug().isBlank())
+                .filter(p -> {
+                    boolean hasPackage = vendorPackageRepository.findByVendorProfileIdOrderByCreatedAtDesc(p.getId()).stream()
+                            .anyMatch(pkg -> pkg.isActive());
+                    boolean hasPhoto = hasPackage || !vendorGalleryPhotoService.listForVendorProfile(p.getId()).isEmpty();
+                    return isSearchIndexable(p, hasPhoto);
+                })
+                .map(p -> new SitemapEntry(p.getSlug(), p.getUpdatedAt()))
+                .toList();
     }
 }

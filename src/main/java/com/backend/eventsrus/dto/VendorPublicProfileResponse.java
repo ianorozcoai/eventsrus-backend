@@ -71,4 +71,7 @@ public class VendorPublicProfileResponse {
     private List<ReviewResponse> reviews;
     private Double averageRating;
     private int reviewCount;
+
+    /** True when search engines may list this page (supplier opted in, profile complete, plan active). */
+    private boolean searchIndexable;
 }

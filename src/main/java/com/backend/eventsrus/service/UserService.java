@@ -517,6 +517,9 @@ public class UserService {
         profile.setBusinessName(request.getBusinessName());
         profile.setDescription(request.getDescription());
         profile.setOwnerName(request.getOwnerName());
+        if (request.getSearchVisible() != null) {
+            profile.setSearchVisible(request.getSearchVisible());
+        }
         if (request.getBusinessTypes() != null) {
             profile.setBusinessTypes(request.getBusinessTypes());
         }
@@ -620,6 +623,7 @@ public class UserService {
                 .maxCustomersPerDay(profile.getMaxCustomersPerDay())
                 .basePrice(profile.getBasePrice())
                 .leadTimeDays(profile.getLeadTimeDays())
+                .searchVisible(profile.isSearchVisible())
                 .storefrontOverview(profile.getStorefrontOverview())
                 // Both are LAZY @ElementCollections - materialized into a
                 // plain list here, inside this @Transactional method, since

@@ -49,4 +49,7 @@ public class VendorSettingsRequest {
     // code uploads themselves go through VendorPaymentMethodController, not
     // this DTO - same reasoning as tab 3's file uploads above.
     private String paymentInstructions;
+
+    /** Null means "leave unchanged" (older app builds do not send it). */
+    private Boolean searchVisible;
 }
