@@ -279,4 +279,93 @@ class RevenueCatWebhookServiceTest {
         assertThat(RevenueCatWebhookService.cycleFor("x", s, s.plusSeconds(200L * 86400))).isEqualTo(BillingCycle.SEMI_ANNUAL);
         assertThat(RevenueCatWebhookService.cycleFor(null, null, null)).isNull();
     }
+
+    private static final String APPLE_FIELDS = "\"store\":\"APP_STORE\",\"product_id\":\"supplier_pro_quarterly\","
+            + "\"purchased_at_ms\":" + PURCHASED + ",\"expiration_at_ms\":" + QUARTER_LATER
+            + ",\"transaction_id\":\"2000000123\",\"currency\":\"PHP\",\"price_in_purchased_currency\":4500.0";
+
+    private void knownUserNoAppleRow() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(vendorSubscriptionEventRepository.existsByPaypalEventId(any())).thenReturn(false);
+        when(vendorSubscriptionRepository.findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(
+                USER_ID, BillingSource.APP_STORE)).thenReturn(Optional.empty());
+    }
+
+    @Test
+    void appleInitialPurchaseCreatesAnAppStoreRowWithCarryOverAndHistory() {
+        knownUserNoAppleRow();
+        when(vendorPlanService.remainingDays(USER_ID)).thenReturn(25);
+        when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.handle(event("evt-a1", "INITIAL_PURCHASE", APPLE_FIELDS));
+
+        ArgumentCaptor<VendorSubscription> saved = ArgumentCaptor.forClass(VendorSubscription.class);
+        verify(vendorSubscriptionRepository).save(saved.capture());
+        VendorSubscription row = saved.getValue();
+        assertThat(row.getBillingSource()).isEqualTo(BillingSource.APP_STORE);
+        assertThat(row.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(row.getBillingCycle()).isEqualTo(BillingCycle.QUARTERLY);
+        assertThat(row.getCarryOverDays()).isEqualTo(25);
+        assertThat(row.getCurrentPeriodEnd()).isEqualTo(Instant.ofEpochMilli(QUARTER_LATER));
+        verify(vendorBillingHistoryService).recordPayment(
+                eq(row), eq(new BigDecimal("4500.0")), eq("PHP"), eq("2000000123"),
+                eq(Instant.ofEpochMilli(PURCHASED)), eq(Instant.ofEpochMilli(QUARTER_LATER)),
+                eq(Instant.ofEpochMilli(PURCHASED)), eq(BillingSource.APP_STORE));
+        verify(vendorReferralService).convertIfPending(USER_ID);
+    }
+
+    @Test
+    void appleCancellationKeepsAccessAndExpirationEndsIt() {
+        VendorSubscription row = VendorSubscription.builder()
+                .user(user).plan(PlanTier.PRO).billingSource(BillingSource.APP_STORE)
+                .status(SubscriptionStatus.ACTIVE).billingCycle(BillingCycle.QUARTERLY)
+                .currentPeriodStart(Instant.ofEpochMilli(PURCHASED)).currentPeriodEnd(Instant.ofEpochMilli(QUARTER_LATER)).build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(vendorSubscriptionEventRepository.existsByPaypalEventId(any())).thenReturn(false);
+        when(vendorSubscriptionRepository.findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(
+                USER_ID, BillingSource.APP_STORE)).thenReturn(Optional.of(row));
+        when(vendorSubscriptionRepository.save(any(VendorSubscription.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.handle(event("evt-a2", "CANCELLATION", "\"store\":\"APP_STORE\",\"expiration_at_ms\":" + QUARTER_LATER));
+        assertThat(row.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
+        assertThat(row.getCurrentPeriodEnd()).isEqualTo(Instant.ofEpochMilli(QUARTER_LATER));
+
+        service.handle(event("evt-a3", "EXPIRATION", "\"store\":\"APP_STORE\",\"expiration_at_ms\":" + PURCHASED));
+        assertThat(row.getStatus()).isEqualTo(SubscriptionStatus.EXPIRED);
+        assertThat(row.getCurrentPeriodEnd()).isEqualTo(Instant.ofEpochMilli(PURCHASED));
+    }
+
+    @Test
+    void appleBillingIssueMentionsTheAppStoreNotGooglePlay() {
+        VendorSubscription row = VendorSubscription.builder()
+                .user(user).plan(PlanTier.PRO).billingSource(BillingSource.APP_STORE)
+                .status(SubscriptionStatus.ACTIVE).build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(vendorSubscriptionEventRepository.existsByPaypalEventId(any())).thenReturn(false);
+        when(vendorSubscriptionRepository.findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(
+                USER_ID, BillingSource.APP_STORE)).thenReturn(Optional.of(row));
+
+        service.handle(event("evt-a4", "BILLING_ISSUE", "\"store\":\"APP_STORE\""));
+
+        verify(notificationService).notify(
+                eq(user), eq(NotificationType.SUBSCRIPTION_PAYMENT_FAILED), any(),
+                org.mockito.ArgumentMatchers.argThat(m -> m.contains("App Store") && !m.contains("Google Play")),
+                any(), any());
+    }
+
+    @Test
+    void storeFieldPicksTheBillingSourceAndDefaultsToGooglePlay() {
+        assertThat(RevenueCatWebhookService.sourceFor("APP_STORE")).isEqualTo(BillingSource.APP_STORE);
+        assertThat(RevenueCatWebhookService.sourceFor("mac_app_store")).isEqualTo(BillingSource.APP_STORE);
+        assertThat(RevenueCatWebhookService.sourceFor("PLAY_STORE")).isEqualTo(BillingSource.GOOGLE_PLAY);
+        assertThat(RevenueCatWebhookService.sourceFor(null)).isEqualTo(BillingSource.GOOGLE_PLAY);
+    }
+
+    @Test
+    void appleProductIdsGiveTheBillingCycle() {
+        Instant s = Instant.ofEpochMilli(PURCHASED);
+        assertThat(RevenueCatWebhookService.cycleFor("supplier_pro_quarterly", s, s)).isEqualTo(BillingCycle.QUARTERLY);
+        assertThat(RevenueCatWebhookService.cycleFor("supplier_pro_semiannual", s, s)).isEqualTo(BillingCycle.SEMI_ANNUAL);
+        assertThat(RevenueCatWebhookService.cycleFor("supplier_pro_annual", s, s)).isEqualTo(BillingCycle.ANNUAL);
+    }
 }

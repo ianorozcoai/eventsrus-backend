@@ -193,6 +193,25 @@ class SubscriptionReminderServiceTest {
     }
 
     @Test
+    void anAppStorePlanThatRenewsByItselfIsNotReminded() {
+        plan(BillingSource.APP_STORE, SubscriptionStatus.ACTIVE, false, inDays(2));
+
+        assertThat(service.runOnce()).isZero();
+
+        verify(smsService, never()).sendSubscriptionReminder(any(), any(), any());
+    }
+
+    @Test
+    void aCancelledAppStorePlanIsRemindedBecauseItWillNotRenew() {
+        plan(BillingSource.APP_STORE, SubscriptionStatus.CANCELLED, false, inDays(2));
+        when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))
+                .thenReturn(false);
+        when(smsService.sendSubscriptionReminder(any(), contains("PRO access ends in"), any())).thenReturn(true);
+
+        assertThat(service.runOnce()).isEqualTo(1);
+    }
+
+    @Test
     void aCancelledGooglePlayPlanIsRemindedBecauseItWillNotRenew() {
         plan(BillingSource.GOOGLE_PLAY, SubscriptionStatus.CANCELLED, false, inDays(2));
         when(subscriptionReminderRepository.existsByUserIdAndAccessEndDateAndLeadDaysAndChannel(anyLong(), any(), anyInt(), anyString()))

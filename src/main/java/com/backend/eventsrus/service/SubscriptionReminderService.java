@@ -143,7 +143,8 @@ public class SubscriptionReminderService {
     private static boolean renewsByItself(VendorSubscription subscription) {
         return subscription.getStatus() == SubscriptionStatus.ACTIVE
                 && (subscription.getBillingSource() == BillingSource.PAYPAL
-                        || subscription.getBillingSource() == BillingSource.GOOGLE_PLAY);
+                        || subscription.getBillingSource() == BillingSource.GOOGLE_PLAY
+                        || subscription.getBillingSource() == BillingSource.APP_STORE);
     }
 
     /** Whole days left, rounded up (a plan ending in 3 hours has 1 day left). */

@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Turns RevenueCat webhook events (Google Play purchases) into the same
+ * Turns RevenueCat webhook events (Google Play and Apple App Store purchases) into the same
  * VendorSubscription + billing-history rows PayPal produces, so
  * VendorPlanService gates access without knowing where the money came from.
  *
@@ -82,8 +82,9 @@ public class RevenueCatWebhookService {
     private VendorSubscription apply(User user, String type, JsonNode event) {
         Instant purchasedAt = millis(event.path("purchased_at_ms"));
         Instant expiresAt = millis(event.path("expiration_at_ms"));
+        BillingSource source = sourceFor(event.path("store").asString(null));
         Optional<VendorSubscription> existing = vendorSubscriptionRepository
-                .findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(user.getId(), BillingSource.GOOGLE_PLAY);
+                .findFirstByUserIdAndBillingSourceOrderByCreatedAtDesc(user.getId(), source);
 
         switch (type) {
             case "INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "PRODUCT_CHANGE" -> {
@@ -92,17 +93,17 @@ public class RevenueCatWebhookService {
                     return existing.orElse(null);
                 }
                 // Paying early: days left on the previous plan (promo, GCash...) are added on top of this
-                // purchase. Read before the row is touched. Skipped when this very Google Play plan is
+                // purchase. Read before the row is touched. Skipped when this very store plan is
                 // still running, so a repeated INITIAL_PURCHASE can never count the same days twice.
-                boolean playPlanStillRunning = existing
+                boolean storePlanStillRunning = existing
                         .map(row -> row.getCurrentPeriodEnd() != null
                                 && row.getCurrentPeriodEnd().plus(row.getCarryOverDays(), ChronoUnit.DAYS)
                                         .isAfter(Instant.now()))
                         .orElse(false);
-                int carryOverDays = "INITIAL_PURCHASE".equals(type) && !playPlanStillRunning
+                int carryOverDays = "INITIAL_PURCHASE".equals(type) && !storePlanStillRunning
                         ? vendorPlanService.remainingDays(user.getId())
                         : -1;
-                VendorSubscription sub = existing.orElseGet(() -> newRow(user));
+                VendorSubscription sub = existing.orElseGet(() -> newRow(user, source));
                 if (carryOverDays >= 0) {
                     sub.setCarryOverDays(carryOverDays);
                 }
@@ -118,7 +119,7 @@ public class RevenueCatWebhookService {
                 }
                 sub = vendorSubscriptionRepository.save(sub);
                 if ("INITIAL_PURCHASE".equals(type) || "RENEWAL".equals(type)) {
-                    recordPayment(sub, event, start, expiresAt);
+                    recordPayment(sub, event, start, expiresAt, source);
                     // No-op unless the supplier has a still-PENDING referral.
                     vendorReferralService.convertIfPending(user.getId());
                 }
@@ -146,14 +147,16 @@ public class RevenueCatWebhookService {
                 }).orElse(null);
             }
             case "BILLING_ISSUE" -> {
-                // Google retries the charge during its own grace period and
+                // The store retries the charge during its own grace period and
                 // RevenueCat sends EXPIRATION if it finally fails, so status
                 // stays as is; this is only a heads-up to the supplier.
+                String storeName = source == BillingSource.APP_STORE ? "the App Store" : "Google Play";
                 existing.ifPresent(sub -> notificationService.notify(
                         user, NotificationType.SUBSCRIPTION_PAYMENT_FAILED,
                         "Subscription payment failed",
-                        "Google Play couldn't process your last PRO subscription payment. Please update your "
-                                + "payment method in Google Play to avoid losing access.",
+                        storeName + " couldn't process your last PRO subscription payment. Please update your "
+                                + "payment method in " + (source == BillingSource.APP_STORE
+                                        ? "your Apple ID settings" : "Google Play") + " to avoid losing access.",
                         "SUBSCRIPTION", sub.getId()));
                 return existing.orElse(null);
             }
@@ -164,16 +167,30 @@ public class RevenueCatWebhookService {
         }
     }
 
-    private VendorSubscription newRow(User user) {
+    /**
+     * RevenueCat's "store" field: APP_STORE / MAC_APP_STORE are Apple, everything else (PLAY_STORE or
+     * a missing field, as before this existed) is treated as Google Play.
+     */
+    static BillingSource sourceFor(String store) {
+        if (store != null) {
+            String s = store.toUpperCase(Locale.ROOT);
+            if ("APP_STORE".equals(s) || "MAC_APP_STORE".equals(s)) {
+                return BillingSource.APP_STORE;
+            }
+        }
+        return BillingSource.GOOGLE_PLAY;
+    }
+
+    private VendorSubscription newRow(User user, BillingSource source) {
         return VendorSubscription.builder()
                 .user(user)
                 .plan(PlanTier.PRO)
-                .billingSource(BillingSource.GOOGLE_PLAY)
+                .billingSource(source)
                 .status(SubscriptionStatus.ACTIVE)
                 .build();
     }
 
-    private void recordPayment(VendorSubscription sub, JsonNode event, Instant start, Instant end) {
+    private void recordPayment(VendorSubscription sub, JsonNode event, Instant start, Instant end, BillingSource source) {
         BigDecimal amount = null;
         String currency = null;
         JsonNode local = event.path("price_in_purchased_currency");
@@ -187,7 +204,7 @@ public class RevenueCatWebhookService {
         }
         vendorBillingHistoryService.recordPayment(
                 sub, amount, currency, event.path("transaction_id").asString(null),
-                start, end, start, BillingSource.GOOGLE_PLAY);
+                start, end, start, source);
     }
 
     /** RevenueCat app_user_id is our backend user id; fall back to a numeric alias after an anonymous-id merge. */
@@ -215,7 +232,10 @@ public class RevenueCatWebhookService {
         return node.isNumber() ? Instant.ofEpochMilli(node.asLong()) : null;
     }
 
-    /** Play product ids look like "supplier_pro:quarterly"; the part after the colon names the base plan. */
+    /**
+     * Play product ids look like "supplier_pro:quarterly" (the part after the colon names the base plan);
+     * Apple product ids are plain, e.g. "supplier_pro_quarterly". Both are matched by keyword.
+     */
     static BillingCycle cycleFor(String productId, Instant start, Instant end) {
         if (productId != null) {
             String id = productId.toLowerCase(Locale.ROOT);
