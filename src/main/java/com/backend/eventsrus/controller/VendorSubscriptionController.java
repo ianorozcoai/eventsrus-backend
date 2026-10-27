@@ -67,6 +67,12 @@ public class VendorSubscriptionController {
         return vendorBillingHistoryService.listForVendor(authentication.getName());
     }
 
+    /** Answering the one-time sign-up welcome - see VendorSubscriptionService#markTrialWelcomeShown. */
+    @PostMapping("/trial-welcome-shown")
+    public void trialWelcomeShown(Authentication authentication) {
+        vendorSubscriptionService.markTrialWelcomeShown(authentication.getName());
+    }
+
     /** "Got it" on the one-time Welcome to PRO popup - see VendorSubscriptionService#markProWelcomeShown. */
     @PostMapping("/welcome-shown")
     public void welcomeShown(Authentication authentication) {

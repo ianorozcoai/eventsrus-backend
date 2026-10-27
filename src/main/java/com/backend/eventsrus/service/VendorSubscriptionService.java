@@ -253,7 +253,26 @@ public class VendorSubscriptionService {
                 .gcashRejected(gcashRejected)
                 .gcashRejectionReason(gcashRejected ? gcashRow.get().getRejectionReason() : null)
                 .showWelcomePopup(computeShowWelcomePopup(userId, effectivePlan, gcashAwaitingVerification))
+                .showTrialWelcome(computeShowTrialWelcome(userId, effectivePlan))
                 .build();
+    }
+
+    /** The one-time sign-up welcome: only while the supplier is still on their free trial, and only until answered. */
+    private boolean computeShowTrialWelcome(Long userId, VendorPlanService.EffectivePlan effectivePlan) {
+        if (effectivePlan.plan() == null || effectivePlan.billingSource() != BillingSource.FREE_GRANT) {
+            return false;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        return user != null && user.isTrialWelcomePending();
+    }
+
+    /** Either answer on the sign-up welcome (Subscribe now / Continue with the free trial) ends it for good. */
+    @Transactional
+    public void markTrialWelcomeShown(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + email));
+        user.setTrialWelcomePending(false);
+        userRepository.save(user);
     }
 
     /**

@@ -276,6 +276,9 @@ public class UserService {
             if (trialDays > 0) {
                 vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd, BillingSource.FREE_GRANT);
             }
+            // The new supplier is welcomed once, told about the trial and offered to subscribe now.
+            user.setTrialWelcomePending(true);
+            userRepository.save(user);
         }
 
         // Fired last, after every other step has succeeded - this method is

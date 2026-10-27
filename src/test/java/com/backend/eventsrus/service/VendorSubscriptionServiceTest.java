@@ -455,6 +455,56 @@ class VendorSubscriptionServiceTest {
     }
 
     @Nested
+    class TrialWelcome {
+
+        private void statusFor(User user, BillingSource source, PlanTier plan) {
+            stubStatusResponseDependencies();
+            when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(vendorPlanService.getEffectivePlan(1L)).thenReturn(
+                    new VendorPlanService.EffectivePlan(plan, Instant.now().plusSeconds(86400), false, false, false, null, source));
+        }
+
+        @Test
+        void aNewSupplierOnTheFreeTrialIsWelcomedOnce() {
+            User user = vendorUser();
+            user.setTrialWelcomePending(true);
+            statusFor(user, BillingSource.FREE_GRANT, PlanTier.PRO);
+
+            assertThat(vendorSubscriptionService.getStatus(EMAIL).isShowTrialWelcome()).isTrue();
+        }
+
+        @Test
+        void noWelcomeOnceItWasAnswered() {
+            User user = vendorUser();
+            statusFor(user, BillingSource.FREE_GRANT, PlanTier.PRO);
+
+            assertThat(vendorSubscriptionService.getStatus(EMAIL).isShowTrialWelcome()).isFalse();
+        }
+
+        @Test
+        void noTrialWelcomeForASupplierWhoAlreadyPaid() {
+            User user = vendorUser();
+            user.setTrialWelcomePending(true);
+            statusFor(user, BillingSource.GOOGLE_PLAY, PlanTier.PRO);
+
+            assertThat(vendorSubscriptionService.getStatus(EMAIL).isShowTrialWelcome()).isFalse();
+        }
+
+        @Test
+        void answeringTheWelcomeEndsItForGood() {
+            User user = vendorUser();
+            user.setTrialWelcomePending(true);
+            when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+
+            vendorSubscriptionService.markTrialWelcomeShown(EMAIL);
+
+            assertThat(user.isTrialWelcomePending()).isFalse();
+            verify(userRepository).save(user);
+        }
+    }
+
+    @Nested
     class ListGcashPayments {
 
         @Test

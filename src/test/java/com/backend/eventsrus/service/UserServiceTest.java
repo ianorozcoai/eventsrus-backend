@@ -266,7 +266,8 @@ class UserServiceTest {
 
         @Test
         void noPromoCodeStartsAPlanThatHasAlreadyEndedSoTheGracePeriodIsTheTrial() {
-            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            User signingUp = plannerUser();
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(signingUp));
             when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
             when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
             when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
@@ -282,6 +283,8 @@ class UserServiceTest {
             assertThat(captor.getValue().getCurrentPeriodEnd())
                     .isBetween(Instant.now().minusSeconds(60), Instant.now().plusSeconds(60));
             verify(vendorBillingHistoryService, never()).recordFreeGrant(any(), any(), any(), any());
+            // The new supplier is welcomed once about the trial (Subscribe now / Continue with the free trial).
+            assertThat(signingUp.isTrialWelcomePending()).isTrue();
         }
 
         @Test
