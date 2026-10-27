@@ -107,6 +107,12 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean proWelcomeShown = false;
 
+    // True from the moment onboarding starts a new supplier's free trial until they answer the one-time
+    // "Welcome to EventsRUs - you have a free trial" message (see VendorSubscriptionService#markTrialWelcomeShown).
+    @Column(name = "trial_welcome_pending", nullable = false)
+    @Builder.Default
+    private boolean trialWelcomePending = false;
+
     // Account deletion (see AccountDeletionService): requested-at starts the
     // 30-day grace period and is cleared by signing in again; deleted-at is
     // set once the account has been scrubbed for good.

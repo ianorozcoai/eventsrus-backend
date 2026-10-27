@@ -40,6 +40,10 @@ public class SubscriptionStatusResponse {
     // actually verifies, never during the temporary 7-day grant) - see
     // VendorSubscriptionService#statusResponseFor/markProWelcomeShown.
     private boolean showWelcomePopup;
+    // True once, for a supplier who has just signed up and is on the free trial: show the "Welcome to EventsRUs,
+    // you have a free trial" message with Subscribe now / Continue with the free trial. See
+    // VendorSubscriptionService#statusResponseFor/markTrialWelcomeShown.
+    private boolean showTrialWelcome;
     // True only while a GCash submission's temporary 7-day grant is still
     // mid-review (plan() is already non-null at this point, since the grant
     // gives real working access immediately) - see
