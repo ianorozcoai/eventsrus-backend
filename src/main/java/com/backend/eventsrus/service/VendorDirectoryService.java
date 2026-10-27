@@ -157,6 +157,9 @@ public class VendorDirectoryService {
                 .build();
     }
 
+    /** A one-word description ("test") is not enough content for Google; ask for a real sentence. */
+    static final int MIN_INDEXABLE_DESCRIPTION = 40;
+
     /**
      * Whether search engines may list a storefront: the supplier has not opted out, the page has real content
      * (a description, a city, and at least one active package or photo) and the supplier has an active plan.
@@ -166,7 +169,8 @@ public class VendorDirectoryService {
         if (!profile.isSearchVisible() || profile.getUser().getDeletedAt() != null) {
             return false;
         }
-        if (isBlank(profile.getDescription()) || isBlank(profile.getCity()) || isBlank(profile.getBusinessName())) {
+        if (profile.getDescription() == null || profile.getDescription().trim().length() < MIN_INDEXABLE_DESCRIPTION
+                || isBlank(profile.getCity()) || isBlank(profile.getBusinessName())) {
             return false;
         }
         if (!hasPackageOrPhoto) {

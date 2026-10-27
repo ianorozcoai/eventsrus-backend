@@ -55,7 +55,9 @@ class VendorDirectorySearchIndexableTest {
     void pageWithoutDescriptionCityOrContentStaysOut() {
         profile.setDescription("  ");
         assertThat(service.isSearchIndexable(profile, true)).isFalse();
-        profile.setDescription("ok");
+        profile.setDescription("test");
+        assertThat(service.isSearchIndexable(profile, true)).isFalse();
+        profile.setDescription("A real description that is long enough to be useful.");
         profile.setCity(null);
         assertThat(service.isSearchIndexable(profile, true)).isFalse();
         profile.setCity("Cebu");
