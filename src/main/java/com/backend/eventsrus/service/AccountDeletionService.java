@@ -93,6 +93,7 @@ public class AccountDeletionService {
     private final EventSuggestedVendorRepository eventSuggestedVendorRepository;
     private final EventBookmarkedVendorRepository eventBookmarkedVendorRepository;
     private final S3UploadService s3UploadService;
+    private final AppleSignInService appleSignInService;
     private final TransactionTemplate transactionTemplate;
 
     public AccountDeletionService(
@@ -115,6 +116,7 @@ public class AccountDeletionService {
             EventSuggestedVendorRepository eventSuggestedVendorRepository,
             EventBookmarkedVendorRepository eventBookmarkedVendorRepository,
             S3UploadService s3UploadService,
+            AppleSignInService appleSignInService,
             PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
         this.vendorProfileRepository = vendorProfileRepository;
@@ -135,6 +137,7 @@ public class AccountDeletionService {
         this.eventSuggestedVendorRepository = eventSuggestedVendorRepository;
         this.eventBookmarkedVendorRepository = eventBookmarkedVendorRepository;
         this.s3UploadService = s3UploadService;
+        this.appleSignInService = appleSignInService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -248,8 +251,14 @@ public class AccountDeletionService {
         tokens.forEach(token -> token.setRevoked(true));
         refreshTokenRepository.saveAll(tokens);
 
-        // The shell row. google_id is replaced so the same Google account can sign up fresh later.
+        // Apple expects the Sign in with Apple authorization to be revoked when the account is deleted.
+        // No-op unless the Apple key settings exist; a failure there never blocks the deletion.
+        appleSignInService.revokeQuietly(user.getAppleRefreshToken());
+
+        // The shell row. google_id/apple_id are cleared so the same accounts can sign up fresh later.
         user.setGoogleId("deleted-" + userId);
+        user.setAppleId(null);
+        user.setAppleRefreshToken(null);
         user.setEmail(null);
         user.setFirstName("Deleted");
         user.setLastName("user");

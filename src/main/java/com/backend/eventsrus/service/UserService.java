@@ -30,6 +30,7 @@ import com.backend.eventsrus.repository.VendorProfileRepository;
 import com.backend.eventsrus.repository.VendorSubscriptionRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +91,67 @@ public class UserService {
         // Signing in also ends a pending lapsed-supplier warning (InactiveSupplierCleanupService).
         user.setInactivityWarningSentAt(null);
         return userRepository.save(user);
+    }
+
+    /**
+     * Sign in with Apple. Same identity rules as {@link #findOrCreateFromGoogle}. A returning Apple user is found by
+     * Apple's stable id. A first-time Apple user whose token carries a REAL, Apple-verified email that already belongs
+     * to an account (for example their Google account) is linked to that account instead of getting a second one;
+     * a private-relay address matches nobody, so it creates a new account. Apple only sends the name the first time,
+     * so a name given here fills in blanks and never overwrites one.
+     */
+    public User findOrCreateFromApple(AppleIdentity apple, String givenName, String familyName, String intent) {
+        SignupIntent declaredIntent = parseIntent(intent);
+        User user = userRepository.findByAppleId(apple.subject())
+                .map(existing -> requireNoIdentityConflict(existing, declaredIntent))
+                .orElseGet(() -> linkOrCreateFromApple(apple, givenName, familyName, declaredIntent));
+        if (user.getFirstName() == null && givenName != null && !givenName.isBlank()) {
+            user.setFirstName(givenName.trim());
+        }
+        if (user.getLastName() == null && familyName != null && !familyName.isBlank()) {
+            user.setLastName(familyName.trim());
+        }
+        user.setLastLoginAt(Instant.now());
+        user.setDeletionRequestedAt(null);
+        user.setInactivityWarningSentAt(null);
+        return userRepository.save(user);
+    }
+
+    private User linkOrCreateFromApple(AppleIdentity apple, String givenName, String familyName, SignupIntent declaredIntent) {
+        boolean realVerifiedEmail = apple.email() != null && !apple.email().isBlank()
+                && apple.emailVerified() && !apple.privateRelayEmail();
+        if (realVerifiedEmail) {
+            Optional<User> sameEmail = userRepository.findByEmail(apple.email());
+            if (sameEmail.isPresent()) {
+                User existing = requireNoIdentityConflict(sameEmail.get(), declaredIntent);
+                existing.setAppleId(apple.subject());
+                return existing;
+            }
+        }
+        User user = User.builder()
+                .appleId(apple.subject())
+                .email(apple.email())
+                .firstName(givenName == null || givenName.isBlank() ? null : givenName.trim())
+                .lastName(familyName == null || familyName.isBlank() ? null : familyName.trim())
+                .role(Role.PLANNER)
+                .signupIntent(declaredIntent != null ? declaredIntent : SignupIntent.PLANNER)
+                .build();
+        User saved;
+        try {
+            saved = userRepository.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw new DuplicateUserException("Account already exists for this Apple user");
+        }
+        if (saved.getSignupIntent() == SignupIntent.PLANNER) {
+            adminNotificationEmailService.notifyNewPlanner(saved);
+        }
+        return saved;
+    }
+
+    /** Remembers the (already encrypted) Apple refresh token so account deletion can revoke it. */
+    public void storeAppleRefreshToken(User user, String encryptedRefreshToken) {
+        user.setAppleRefreshToken(encryptedRefreshToken);
+        userRepository.save(user);
     }
 
     private SignupIntent parseIntent(String intent) {

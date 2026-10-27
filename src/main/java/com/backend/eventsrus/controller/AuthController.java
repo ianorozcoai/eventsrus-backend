@@ -1,5 +1,6 @@
 package com.backend.eventsrus.controller;
 
+import com.backend.eventsrus.dto.AppleAuthRequest;
 import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.GoogleAuthRequest;
 import com.backend.eventsrus.dto.RefreshTokenRequest;
@@ -22,6 +23,11 @@ public class AuthController {
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> google(@Valid @RequestBody GoogleAuthRequest request) {
         return ResponseEntity.ok(authService.authenticateWithGoogle(request));
+    }
+
+    @PostMapping("/apple")
+    public ResponseEntity<AuthResponse> apple(@Valid @RequestBody AppleAuthRequest request) {
+        return ResponseEntity.ok(authService.authenticateWithApple(request));
     }
 
     // No @PreAuthorize/bearer-auth needed here by design - this is exactly

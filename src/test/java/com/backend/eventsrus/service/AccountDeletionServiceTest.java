@@ -69,6 +69,7 @@ class AccountDeletionServiceTest {
     @Mock private EventSuggestedVendorRepository eventSuggestedVendorRepository;
     @Mock private EventBookmarkedVendorRepository eventBookmarkedVendorRepository;
     @Mock private S3UploadService s3UploadService;
+    @Mock private AppleSignInService appleSignInService;
     @Mock private PlatformTransactionManager transactionManager;
 
     private AccountDeletionService service;
@@ -82,7 +83,7 @@ class AccountDeletionServiceTest {
                 googleCalendarConnectionRepository, galleryPhotoRepository, packageImageRepository,
                 legalDocumentRepository, paymentMethodRepository, socialMediaLinkRepository,
                 vendorPackageRepository, eventSuggestedVendorRepository, eventBookmarkedVendorRepository,
-                s3UploadService, transactionManager);
+                s3UploadService, appleSignInService, transactionManager);
     }
 
     private static User planner() {

@@ -23,8 +23,17 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class User extends BaseEntity {
 
-    @Column(name = "google_id", nullable = false, unique = true)
+    // Optional since Sign in with Apple: an Apple-only account has no Google id (a person has at least one of the two).
+    @Column(name = "google_id", unique = true)
     private String googleId;
+
+    // Apple's stable per-app user id (the "sub" of the identity token); see AppleTokenVerifierService.
+    @Column(name = "apple_id", unique = true)
+    private String appleId;
+
+    // AES-GCM encrypted Apple refresh token, kept only to revoke the authorization on account deletion.
+    @Column(name = "apple_refresh_token")
+    private String appleRefreshToken;
 
     @Column
     private String email;

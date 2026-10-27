@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.dto.AppleAuthRequest;
 import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.GoogleAuthRequest;
 import com.backend.eventsrus.model.User;
@@ -16,10 +17,25 @@ public class AuthService {
     private final JwtService jwtService;
     private final VendorPlanService vendorPlanService;
     private final RefreshTokenService refreshTokenService;
+    private final AppleIdentityTokenVerifier appleIdentityTokenVerifier;
+    private final AppleSignInService appleSignInService;
 
     public AuthResponse authenticateWithGoogle(GoogleAuthRequest request) {
         GoogleUserInfo googleUser = googleTokenVerifierService.verify(request.getIdToken());
         User user = userService.findOrCreateFromGoogle(googleUser, request.getIntent());
+        return issueTokenFor(user);
+    }
+
+    /** Sign in with Apple (App Store guideline 4.8): verifies the identity token, then finds, links or creates the user. */
+    public AuthResponse authenticateWithApple(AppleAuthRequest request) {
+        AppleIdentity identity = appleIdentityTokenVerifier.verify(request.getIdentityToken(), request.getNonce());
+        User user = userService.findOrCreateFromApple(
+                identity, request.getGivenName(), request.getFamilyName(), request.getIntent());
+        // Only when the Apple key settings exist; lets account deletion revoke the Apple authorization later.
+        String encryptedRefresh = appleSignInService.exchangeCodeForEncryptedRefreshToken(request.getAuthorizationCode());
+        if (encryptedRefresh != null) {
+            userService.storeAppleRefreshToken(user, encryptedRefresh);
+        }
         return issueTokenFor(user);
     }
 
