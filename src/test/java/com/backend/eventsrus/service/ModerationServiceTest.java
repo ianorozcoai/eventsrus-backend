@@ -62,6 +62,34 @@ class ModerationServiceTest {
     }
 
     @Nested
+    class AdminBlockList {
+
+        @Test
+        void showsWhoBlockedWhomWithNamesRolesAndDate() {
+            UserBlock block = UserBlock.builder().blocker(PLANNER).blocked(VENDOR).build();
+            block.setId(5L);
+            when(userBlockRepository.findTop500ByOrderByCreatedAtDesc()).thenReturn(java.util.List.of(block));
+
+            var blocks = service.listBlocksForAdmin();
+
+            assertThat(blocks).hasSize(1);
+            assertThat(blocks.get(0).blockerName()).isEqualTo("Ana Cruz");
+            assertThat(blocks.get(0).blockerRole()).isEqualTo(Role.PLANNER);
+            assertThat(blocks.get(0).blockedName()).isEqualTo("Ben Reyes");
+            assertThat(blocks.get(0).blockedRole()).isEqualTo(Role.VENDOR);
+            assertThat(blocks.get(0).blockedUserId()).isEqualTo(1L);
+        }
+
+        @Test
+        void aUserWithNoNameIsShownGenerically() {
+            UserBlock block = UserBlock.builder().blocker(OUTSIDER).blocked(VENDOR).build();
+            when(userBlockRepository.findTop500ByOrderByCreatedAtDesc()).thenReturn(java.util.List.of(block));
+
+            assertThat(service.listBlocksForAdmin().get(0).blockerName()).isEqualTo("EventsRUs user");
+        }
+    }
+
+    @Nested
     class Block {
 
         @Test

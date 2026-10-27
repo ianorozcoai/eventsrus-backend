@@ -1,5 +1,6 @@
 package com.backend.eventsrus.controller;
 
+import com.backend.eventsrus.dto.AdminBlockResponse;
 import com.backend.eventsrus.dto.AdminReportResponse;
 import com.backend.eventsrus.dto.BlockedUserResponse;
 import com.backend.eventsrus.dto.ReportRequest;
@@ -53,6 +54,12 @@ public class ModerationController {
     @GetMapping("/api/v1/users/me/blocks")
     public List<BlockedUserResponse> blocked(Authentication authentication) {
         return moderationService.listBlocked(authentication.getName());
+    }
+
+    /** Who has blocked whom, newest first - see ModerationService#listBlocksForAdmin. */
+    @GetMapping("/api/v1/admin/blocks")
+    public List<AdminBlockResponse> adminBlocks() {
+        return moderationService.listBlocksForAdmin();
     }
 
     @GetMapping("/api/v1/admin/reports")

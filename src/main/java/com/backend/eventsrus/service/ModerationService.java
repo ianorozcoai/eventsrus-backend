@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.dto.AdminBlockResponse;
 import com.backend.eventsrus.dto.AdminReportResponse;
 import com.backend.eventsrus.dto.BlockedUserResponse;
 import com.backend.eventsrus.dto.ReportRequest;
@@ -169,6 +170,18 @@ public class ModerationService {
                 ? contentReportRepository.findAllByOrderByCreatedAtDesc()
                 : contentReportRepository.findByStatusOrderByCreatedAtDesc(status);
         return reports.stream().map(this::toAdminResponse).toList();
+    }
+
+    /** Every block, newest first, so an admin can see who is blocking whom (a pattern can mean abuse). */
+    @Transactional(readOnly = true)
+    public List<AdminBlockResponse> listBlocksForAdmin() {
+        return userBlockRepository.findTop500ByOrderByCreatedAtDesc().stream()
+                .map(block -> new AdminBlockResponse(
+                        block.getId(),
+                        block.getBlocker().getId(), displayName(block.getBlocker()), block.getBlocker().getRole(),
+                        block.getBlocked().getId(), displayName(block.getBlocked()), block.getBlocked().getRole(),
+                        block.getCreatedAt()))
+                .toList();
     }
 
     @Transactional

@@ -15,6 +15,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** Accounts whose 30-day deletion grace period has run out and are not yet scrubbed. */
     java.util.List<User> findByDeletionRequestedAtBeforeAndDeletedAtIsNull(java.time.Instant cutoff);
 
+    /** Deletion requests still inside the grace period (signing in again cancels them), newest first. */
+    java.util.List<User> findByDeletionRequestedAtIsNotNullAndDeletedAtIsNullOrderByDeletionRequestedAtDesc();
+
+    /** Accounts already scrubbed, most recent first (capped: the admin only needs the latest). */
+    java.util.List<User> findTop200ByDeletedAtIsNotNullOrderByDeletedAtDesc();
+
 
     Optional<User> findByGoogleId(String googleId);
 

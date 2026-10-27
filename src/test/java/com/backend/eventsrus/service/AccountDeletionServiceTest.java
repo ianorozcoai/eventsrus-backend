@@ -90,6 +90,50 @@ class AccountDeletionServiceTest {
     }
 
     @Nested
+    class AdminList {
+
+        @Test
+        void pendingRequestsShowWhoAndWhenTheyWillBeScrubbed() {
+            Instant requested = Instant.now().minus(Duration.ofDays(3));
+            User user = User.builder().id(7L).email("planner@example.com").firstName("Ana").lastName("Cruz")
+                    .role(Role.PLANNER).build();
+            user.setDeletionRequestedAt(requested);
+            when(userRepository.findByDeletionRequestedAtIsNotNullAndDeletedAtIsNullOrderByDeletionRequestedAtDesc())
+                    .thenReturn(List.of(user));
+            when(userRepository.findTop200ByDeletedAtIsNotNullOrderByDeletedAtDesc()).thenReturn(List.of());
+
+            var rows = service.listForAdmin();
+
+            assertThat(rows).hasSize(1);
+            assertThat(rows.get(0).status()).isEqualTo("PENDING");
+            assertThat(rows.get(0).name()).isEqualTo("Ana Cruz");
+            assertThat(rows.get(0).email()).isEqualTo("planner@example.com");
+            assertThat(rows.get(0).scheduledDeletionAt()).isEqualTo(requested.plus(Duration.ofDays(30)));
+            assertThat(rows.get(0).deletedAt()).isNull();
+        }
+
+        @Test
+        void completedDeletionsNoLongerExposeNameOrEmail() {
+            Instant deleted = Instant.now().minus(Duration.ofDays(1));
+            User user = User.builder().id(8L).email("scrubbed-8@deleted.invalid").role(Role.VENDOR).build();
+            user.setDeletionRequestedAt(Instant.now().minus(Duration.ofDays(31)));
+            user.setDeletedAt(deleted);
+            when(userRepository.findByDeletionRequestedAtIsNotNullAndDeletedAtIsNullOrderByDeletionRequestedAtDesc())
+                    .thenReturn(List.of());
+            when(userRepository.findTop200ByDeletedAtIsNotNullOrderByDeletedAtDesc()).thenReturn(List.of(user));
+
+            var rows = service.listForAdmin();
+
+            assertThat(rows).hasSize(1);
+            assertThat(rows.get(0).status()).isEqualTo("COMPLETED");
+            assertThat(rows.get(0).name()).isNull();
+            assertThat(rows.get(0).email()).isNull();
+            assertThat(rows.get(0).deletedAt()).isEqualTo(deleted);
+            assertThat(rows.get(0).role()).isEqualTo(Role.VENDOR);
+        }
+    }
+
+    @Nested
     class RequestDeletion {
 
         @Test

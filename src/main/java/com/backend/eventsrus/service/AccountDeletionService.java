@@ -1,5 +1,6 @@
 package com.backend.eventsrus.service;
 
+import com.backend.eventsrus.dto.AdminAccountDeletionResponse;
 import com.backend.eventsrus.enums.BookingStatus;
 import com.backend.eventsrus.enums.Role;
 import com.backend.eventsrus.enums.SubscriptionStatus;
@@ -135,6 +136,29 @@ public class AccountDeletionService {
         this.eventBookmarkedVendorRepository = eventBookmarkedVendorRepository;
         this.s3UploadService = s3UploadService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
+
+    /**
+     * Admin visibility: deletion requests still inside the grace period (they can be cancelled by signing in
+     * again), then the accounts already scrubbed. Scrubbed accounts no longer have a name or email.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminAccountDeletionResponse> listForAdmin() {
+        List<AdminAccountDeletionResponse> result = new java.util.ArrayList<>();
+        for (User user : userRepository.findByDeletionRequestedAtIsNotNullAndDeletedAtIsNullOrderByDeletionRequestedAtDesc()) {
+            String first = user.getFirstName() == null ? "" : user.getFirstName();
+            String last = user.getLastName() == null ? "" : user.getLastName();
+            String name = (first + " " + last).trim();
+            result.add(new AdminAccountDeletionResponse(
+                    user.getId(), "PENDING", user.getRole(), name.isEmpty() ? null : name, user.getEmail(),
+                    user.getDeletionRequestedAt(), user.getDeletionRequestedAt().plus(GRACE_PERIOD), null));
+        }
+        for (User user : userRepository.findTop200ByDeletedAtIsNotNullOrderByDeletedAtDesc()) {
+            result.add(new AdminAccountDeletionResponse(
+                    user.getId(), "COMPLETED", user.getRole(), null, null,
+                    user.getDeletionRequestedAt(), null, user.getDeletedAt()));
+        }
+        return result;
     }
 
     /** Schedules the caller's account for deletion in 30 days. Returns when it will be scrubbed. */

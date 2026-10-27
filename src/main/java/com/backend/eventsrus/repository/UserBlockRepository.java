@@ -12,4 +12,7 @@ public interface UserBlockRepository extends JpaRepository<UserBlock, Long> {
     boolean existsByBlockerIdAndBlockedId(Long blockerId, Long blockedId);
 
     List<UserBlock> findByBlockerIdOrderByCreatedAtDesc(Long blockerId);
+
+    /** Every block, newest first - the admin's moderation view. */
+    List<UserBlock> findTop500ByOrderByCreatedAtDesc();
 }
