@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
 
 /**
@@ -25,6 +24,9 @@ import org.springframework.web.util.HtmlUtils;
  *
  * Email is only really sent when app.admin-notifications-enabled is true (Railway production); local runs
  * never send real email.
+ *
+ * Deliberately NOT one big transaction: each person is saved the moment their email goes out, so a slow or
+ * failing send for one person can never lose, or hold up recording, the others.
  */
 @Service
 @RequiredArgsConstructor
@@ -51,7 +53,6 @@ public class IncompleteSignupReminderService {
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
 
-    @Transactional
     public Result sendTo(Long userId) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) {
@@ -60,7 +61,6 @@ public class IncompleteSignupReminderService {
         return send(user, Instant.now());
     }
 
-    @Transactional
     public List<Result> sendToAll() {
         Instant now = Instant.now();
         return userRepository.findBySignupIntentAndRoleNotOrderByCreatedAtDesc(SignupIntent.VENDOR, Role.VENDOR).stream()
@@ -69,6 +69,12 @@ public class IncompleteSignupReminderService {
     }
 
     private Result send(User user, Instant now) {
+        Result result = attempt(user, now);
+        log.info("Finish-your-sign-up email for user {}: {}", user.getId(), result.outcome());
+        return result;
+    }
+
+    private Result attempt(User user, Instant now) {
         Outcome outcome = check(user, now);
         if (outcome != null) {
             return new Result(user.getId(), user.getEmail(), outcome);
