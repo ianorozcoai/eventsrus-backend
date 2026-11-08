@@ -40,6 +40,7 @@ public class AdminPlannerController {
                 .state(item.state())
                 .joinedAt(item.joinedAt())
                 .eventsCount(item.eventsCount())
+                .signupSource(item.signupSource())
                 .build();
     }
 }

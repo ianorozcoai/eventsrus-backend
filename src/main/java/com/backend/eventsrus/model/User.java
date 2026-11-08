@@ -52,6 +52,11 @@ public class User extends BaseEntity {
     @Column(name = "signup_intent", nullable = false)
     private SignupIntent signupIntent;
 
+    // Which client the account first signed up from (see SignupSource). Null for
+    // accounts created before this was tracked. Informational only.
+    @Column(name = "signup_source", length = 20)
+    private String signupSource;
+
     // Vendor Terms & Agreement acceptance - set once, at becomeVendor time.
     // Null for planners and for any vendor who onboarded before this existed.
     @Column(name = "terms_accepted_at")

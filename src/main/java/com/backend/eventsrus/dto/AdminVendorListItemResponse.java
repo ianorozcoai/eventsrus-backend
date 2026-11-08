@@ -51,4 +51,6 @@ public class AdminVendorListItemResponse {
     private boolean planExpired;
     private boolean planInGracePeriod;
     private Instant planOverdueSince;
+    /** WEB, ANDROID, IOS, MOBILE, UNKNOWN or null (account older than the tracking). */
+    private String signupSource;
 }

@@ -20,4 +20,5 @@ public class AdminPlannerListItemResponse {
     private String state;
     private Instant joinedAt;
     private int eventsCount;
+    private String signupSource;
 }

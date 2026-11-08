@@ -18,8 +18,13 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
 
     public AuthResponse authenticateWithGoogle(GoogleAuthRequest request) {
+        return authenticateWithGoogle(request, null);
+    }
+
+    /** signupSource: which client this login came from (see SignupSource); only used when it creates a new account. */
+    public AuthResponse authenticateWithGoogle(GoogleAuthRequest request, String signupSource) {
         GoogleUserInfo googleUser = googleTokenVerifierService.verify(request.getIdToken());
-        User user = userService.findOrCreateFromGoogle(googleUser, request.getIntent());
+        User user = userService.findOrCreateFromGoogle(googleUser, request.getIntent(), signupSource);
         return issueTokenFor(user);
     }
 

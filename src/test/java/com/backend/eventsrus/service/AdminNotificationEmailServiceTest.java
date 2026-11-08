@@ -64,6 +64,20 @@ class AdminNotificationEmailServiceTest {
     }
 
     @Test
+    void emailSaysWhereTheAccountSignedUpFrom() {
+        ReflectionTestUtils.setField(service, "enabled", true);
+        User fromAndroid = User.builder().email("a@example.com").firstName("A").lastName("B")
+                .role(Role.PLANNER).signupIntent(SignupIntent.PLANNER).signupSource("ANDROID").build();
+
+        service.notifyNewPlanner(fromAndroid);
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getSubject()).contains("Android app");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getText()).contains("Signed up from: Android app");
+    }
+
+    @Test
     void neverThrowsEvenWhenSendingFails() {
         ReflectionTestUtils.setField(service, "enabled", true);
         org.mockito.Mockito.doThrow(new org.springframework.mail.MailSendException("smtp down"))

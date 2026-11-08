@@ -79,6 +79,7 @@ public class AdminVendorController {
                         .planExpired(v.planExpired())
                         .planInGracePeriod(v.planInGracePeriod())
                         .planOverdueSince(v.planOverdueSince())
+                        .signupSource(v.signupSource())
                         .build())
                 .toList();
     }
@@ -96,6 +97,7 @@ public class AdminVendorController {
                         .signedUpAt(v.signedUpAt())
                         .reminderCount(v.reminderCount())
                         .lastReminderAt(v.lastReminderAt())
+                        .signupSource(v.signupSource())
                         .build())
                 .toList();
     }
