@@ -1,6 +1,7 @@
 package com.backend.eventsrus.controller;
 
 import com.backend.eventsrus.dto.AdminPlannerListItemResponse;
+import com.backend.eventsrus.util.SuspiciousSignup;
 import com.backend.eventsrus.service.UserService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class AdminPlannerController {
                 .joinedAt(item.joinedAt())
                 .eventsCount(item.eventsCount())
                 .signupSource(item.signupSource())
+                .suspiciousReasons(SuspiciousSignup.reasons(item.mobileNumber(), item.email()))
                 .build();
     }
 }

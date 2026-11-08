@@ -53,4 +53,6 @@ public class AdminVendorListItemResponse {
     private Instant planOverdueSince;
     /** WEB, ANDROID, IOS, MOBILE, UNKNOWN or null (account older than the tracking). */
     private String signupSource;
+    /** Plain-words reasons an admin should take a second look (see SuspiciousSignup); empty when nothing looks off. */
+    private List<String> suspiciousReasons;
 }

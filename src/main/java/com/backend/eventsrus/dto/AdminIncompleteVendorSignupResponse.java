@@ -1,6 +1,7 @@
 package com.backend.eventsrus.dto;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,4 +26,6 @@ public class AdminIncompleteVendorSignupResponse {
     private int reminderCount;
     private Instant lastReminderAt;
     private String signupSource;
+    /** Plain-words reasons an admin should take a second look (see SuspiciousSignup); empty when nothing looks off. */
+    private List<String> suspiciousReasons;
 }

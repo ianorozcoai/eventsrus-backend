@@ -4,6 +4,7 @@ import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
 import com.backend.eventsrus.dto.AdminExtendAccessResponse;
 import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
+import com.backend.eventsrus.util.SuspiciousSignup;
 import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
 import com.backend.eventsrus.enums.ReferralStatus;
@@ -80,6 +81,7 @@ public class AdminVendorController {
                         .planInGracePeriod(v.planInGracePeriod())
                         .planOverdueSince(v.planOverdueSince())
                         .signupSource(v.signupSource())
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.phoneNumber(), v.contactEmail()))
                         .build())
                 .toList();
     }
@@ -98,6 +100,7 @@ public class AdminVendorController {
                         .reminderCount(v.reminderCount())
                         .lastReminderAt(v.lastReminderAt())
                         .signupSource(v.signupSource())
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.mobileNumber(), v.email()))
                         .build())
                 .toList();
     }
