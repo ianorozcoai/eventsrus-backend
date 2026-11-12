@@ -1,6 +1,7 @@
 package com.backend.eventsrus.service;
 
 import com.backend.eventsrus.model.User;
+import com.backend.eventsrus.util.SignupSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,18 +42,20 @@ public class AdminNotificationEmailService {
     // transaction has already committed by the time this runs.
     @Async
     public void notifyNewPlanner(User user) {
-        send("New planner signed up on EventsRUs",
+        send("New planner signed up on EventsRUs (" + SignupSource.label(user.getSignupSource()) + ")",
                 "A new planner account was just created.\n\n"
                         + "Name: " + displayName(user) + "\n"
-                        + "Email: " + user.getEmail());
+                        + "Email: " + user.getEmail() + "\n"
+                        + "Signed up from: " + SignupSource.label(user.getSignupSource()));
     }
 
     @Async
     public void notifyNewVendor(User user) {
-        send("New vendor signed up on EventsRUs",
+        send("New vendor signed up on EventsRUs (" + SignupSource.label(user.getSignupSource()) + ")",
                 "An account just finished vendor onboarding.\n\n"
                         + "Name: " + displayName(user) + "\n"
-                        + "Email: " + user.getEmail());
+                        + "Email: " + user.getEmail() + "\n"
+                        + "Signed up from: " + SignupSource.label(user.getSignupSource()));
     }
 
     // PayPal's own retry/dunning schedule handles the subscription itself

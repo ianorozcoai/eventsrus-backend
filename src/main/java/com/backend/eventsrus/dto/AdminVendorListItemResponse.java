@@ -51,4 +51,8 @@ public class AdminVendorListItemResponse {
     private boolean planExpired;
     private boolean planInGracePeriod;
     private Instant planOverdueSince;
+    /** WEB, ANDROID, IOS, MOBILE, UNKNOWN or null (account older than the tracking). */
+    private String signupSource;
+    /** Plain-words reasons an admin should take a second look (see SuspiciousSignup); empty when nothing looks off. */
+    private List<String> suspiciousReasons;
 }

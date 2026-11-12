@@ -80,10 +80,15 @@ public class UserService {
      * An undeclared intent on a returning user skips the check entirely.
      */
     public User findOrCreateFromGoogle(GoogleUserInfo googleUser, String intent) {
+        return findOrCreateFromGoogle(googleUser, intent, null);
+    }
+
+    /** signupSource is stored only when this call creates the account (see SignupSource). */
+    public User findOrCreateFromGoogle(GoogleUserInfo googleUser, String intent, String signupSource) {
         SignupIntent declaredIntent = parseIntent(intent);
         User user = userRepository.findByGoogleId(googleUser.googleId())
                 .map(existing -> requireNoIdentityConflict(existing, declaredIntent))
-                .orElseGet(() -> createFromGoogle(googleUser, declaredIntent));
+                .orElseGet(() -> createFromGoogle(googleUser, declaredIntent, signupSource));
         user.setLastLoginAt(Instant.now());
         // Signing in during the 30-day grace period cancels a pending
         // account deletion (see AccountDeletionService).
@@ -174,7 +179,7 @@ public class UserService {
         return existing;
     }
 
-    private User createFromGoogle(GoogleUserInfo googleUser, SignupIntent declaredIntent) {
+    private User createFromGoogle(GoogleUserInfo googleUser, SignupIntent declaredIntent, String signupSource) {
         User user = User.builder()
                 .googleId(googleUser.googleId())
                 .email(googleUser.email())
@@ -182,6 +187,7 @@ public class UserService {
                 .lastName(googleUser.familyName())
                 .role(Role.PLANNER)
                 .signupIntent(declaredIntent != null ? declaredIntent : SignupIntent.PLANNER)
+                .signupSource(signupSource)
                 .build();
 
         User saved;
@@ -411,7 +417,8 @@ public class UserService {
                         plan.billingSource() != null ? plan.billingSource().name() : null,
                         plan.expired(),
                         plan.inGracePeriod(),
-                        plan.expiresAt());
+                        plan.expiresAt(),
+                        profile.getUser().getSignupSource());
                 })
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
@@ -432,7 +439,10 @@ public class UserService {
                         user.getLastName(),
                         user.getEmail(),
                         user.getMobileNumber(),
-                        user.getCreatedAt()))
+                        user.getCreatedAt(),
+                        user.getSignupReminderCount(),
+                        user.getSignupReminderLastSentAt(),
+                        user.getSignupSource()))
                 .toList();
     }
 
@@ -475,7 +485,8 @@ public class UserService {
                 planner.getCity(),
                 planner.getState(),
                 planner.getCreatedAt(),
-                (int) eventRepository.countByPlannerId(planner.getId()));
+                (int) eventRepository.countByPlannerId(planner.getId()),
+                planner.getSignupSource());
     }
 
     public record AdminPlannerListItem(
@@ -487,7 +498,8 @@ public class UserService {
             String city,
             String state,
             Instant joinedAt,
-            int eventsCount) {
+            int eventsCount,
+            String signupSource) {
     }
 
     /** Marks a vendor verified - the ONLY thing that puts the "Verified Vendor" badge on their storefront. */
@@ -579,6 +591,9 @@ public class UserService {
         profile.setBusinessName(request.getBusinessName());
         profile.setDescription(request.getDescription());
         profile.setOwnerName(request.getOwnerName());
+        if (request.getSearchVisible() != null) {
+            profile.setSearchVisible(request.getSearchVisible());
+        }
         if (request.getBusinessTypes() != null) {
             profile.setBusinessTypes(request.getBusinessTypes());
         }
@@ -682,6 +697,7 @@ public class UserService {
                 .maxCustomersPerDay(profile.getMaxCustomersPerDay())
                 .basePrice(profile.getBasePrice())
                 .leadTimeDays(profile.getLeadTimeDays())
+                .searchVisible(profile.isSearchVisible())
                 .storefrontOverview(profile.getStorefrontOverview())
                 // Both are LAZY @ElementCollections - materialized into a
                 // plain list here, inside this @Transactional method, since
@@ -791,7 +807,8 @@ public class UserService {
             String billingSource,
             boolean planExpired,
             boolean planInGracePeriod,
-            Instant planOverdueSince) {
+            Instant planOverdueSince,
+            String signupSource) {
     }
 
     public record AdminIncompleteVendorSignup(
@@ -800,7 +817,10 @@ public class UserService {
             String lastName,
             String email,
             String mobileNumber,
-            Instant signedUpAt) {
+            Instant signedUpAt,
+            int reminderCount,
+            Instant lastReminderAt,
+            String signupSource) {
     }
 
     // businessPermit is gone - legal documents (any number of them) are now

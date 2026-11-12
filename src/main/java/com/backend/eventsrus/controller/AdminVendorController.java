@@ -4,6 +4,7 @@ import com.backend.eventsrus.dto.AdminIncompleteVendorSignupResponse;
 import com.backend.eventsrus.dto.AdminExtendAccessResponse;
 import com.backend.eventsrus.dto.AdminReferralResponse;
 import com.backend.eventsrus.dto.AdminVendorListItemResponse;
+import com.backend.eventsrus.util.SuspiciousSignup;
 import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.VendorVerificationDocumentsResponse;
 import com.backend.eventsrus.enums.ReferralStatus;
@@ -12,6 +13,7 @@ import com.backend.eventsrus.model.User;
 import com.backend.eventsrus.repository.UserRepository;
 import com.backend.eventsrus.service.AdminSubscriptionExtensionService;
 import com.backend.eventsrus.service.AuthService;
+import com.backend.eventsrus.service.IncompleteSignupReminderService;
 import com.backend.eventsrus.service.ReviewService;
 import com.backend.eventsrus.service.UserService;
 import com.backend.eventsrus.service.VendorReferralService;
@@ -44,6 +46,7 @@ public class AdminVendorController {
     private final VendorReferralService vendorReferralService;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final IncompleteSignupReminderService incompleteSignupReminderService;
     private final AdminSubscriptionExtensionService adminSubscriptionExtensionService;
 
     /** The review queue - every vendor, regardless of verification state. */
@@ -77,6 +80,8 @@ public class AdminVendorController {
                         .planExpired(v.planExpired())
                         .planInGracePeriod(v.planInGracePeriod())
                         .planOverdueSince(v.planOverdueSince())
+                        .signupSource(v.signupSource())
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.phoneNumber(), v.contactEmail()))
                         .build())
                 .toList();
     }
@@ -92,8 +97,24 @@ public class AdminVendorController {
                         .email(v.email())
                         .mobileNumber(v.mobileNumber())
                         .signedUpAt(v.signedUpAt())
+                        .reminderCount(v.reminderCount())
+                        .lastReminderAt(v.lastReminderAt())
+                        .signupSource(v.signupSource())
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.mobileNumber(), v.email()))
                         .build())
                 .toList();
+    }
+
+    /** Email one incomplete sign-up a friendly "finish your registration" reminder (admin button). */
+    @PostMapping("/incomplete-signups/{userId}/reminder-email")
+    public IncompleteSignupReminderService.Result sendIncompleteSignupReminder(@PathVariable Long userId) {
+        return incompleteSignupReminderService.sendTo(userId);
+    }
+
+    /** Email every incomplete sign-up that is allowed another reminder (admin "email all" button). */
+    @PostMapping("/incomplete-signups/reminder-emails")
+    public List<IncompleteSignupReminderService.Result> sendAllIncompleteSignupReminders() {
+        return incompleteSignupReminderService.sendToAll();
     }
 
     @GetMapping("/{userId}/verification-documents")

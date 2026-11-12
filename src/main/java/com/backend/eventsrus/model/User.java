@@ -61,6 +61,11 @@ public class User extends BaseEntity {
     @Column(name = "signup_intent", nullable = false)
     private SignupIntent signupIntent;
 
+    // Which client the account first signed up from (see SignupSource). Null for
+    // accounts created before this was tracked. Informational only.
+    @Column(name = "signup_source", length = 20)
+    private String signupSource;
+
     // Vendor Terms & Agreement acceptance - set once, at becomeVendor time.
     // Null for planners and for any vendor who onboarded before this existed.
     @Column(name = "terms_accepted_at")
@@ -121,6 +126,15 @@ public class User extends BaseEntity {
     @Column(name = "trial_welcome_pending", nullable = false)
     @Builder.Default
     private boolean trialWelcomePending = false;
+
+    // Admin-sent "finish your sign-up" email (see IncompleteSignupReminderService): when the last one went out and
+    // how many have been sent, so nobody is emailed too often or too many times.
+    @Column(name = "signup_reminder_last_sent_at")
+    private Instant signupReminderLastSentAt;
+
+    @Column(name = "signup_reminder_count", nullable = false)
+    @Builder.Default
+    private int signupReminderCount = 0;
 
     // Account deletion (see AccountDeletionService): requested-at starts the
     // 30-day grace period and is cleared by signing in again; deleted-at is

@@ -107,6 +107,12 @@ public class VendorProfile extends BaseEntity {
     @Builder.Default
     private boolean topVendor = false;
 
+    // The supplier's own switch: may search engines list this storefront? On by default; see
+    // VendorDirectoryService#isSearchIndexable for the other conditions (complete profile, active plan).
+    @Column(name = "search_visible", nullable = false)
+    @Builder.Default
+    private boolean searchVisible = true;
+
     // Business-registration paperwork (DTI/SEC/Mayor's Permit/Barangay
     // Clearance/BIR/...) now lives in VendorLegalDocument, a child
     // collection - a business can reasonably have several of these at once,

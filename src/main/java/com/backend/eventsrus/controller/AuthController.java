@@ -5,11 +5,13 @@ import com.backend.eventsrus.dto.AuthResponse;
 import com.backend.eventsrus.dto.GoogleAuthRequest;
 import com.backend.eventsrus.dto.RefreshTokenRequest;
 import com.backend.eventsrus.service.AuthService;
+import com.backend.eventsrus.util.SignupSource;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,8 +23,11 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/google")
-    public ResponseEntity<AuthResponse> google(@Valid @RequestBody GoogleAuthRequest request) {
-        return ResponseEntity.ok(authService.authenticateWithGoogle(request));
+    public ResponseEntity<AuthResponse> google(
+            @Valid @RequestBody GoogleAuthRequest request,
+            @RequestHeader(value = "X-Client-Platform", required = false) String platform,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent) {
+        return ResponseEntity.ok(authService.authenticateWithGoogle(request, SignupSource.resolve(platform, userAgent)));
     }
 
     @PostMapping("/apple")

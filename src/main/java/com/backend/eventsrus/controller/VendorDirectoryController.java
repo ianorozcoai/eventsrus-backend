@@ -62,6 +62,12 @@ public class VendorDirectoryController {
                 .build();
     }
 
+    /** Slugs of the storefronts search engines may list, for the website's sitemap.xml. */
+    @GetMapping("/sitemap")
+    public List<VendorDirectoryService.SitemapEntry> sitemap() {
+        return vendorDirectoryService.listSitemapEntries();
+    }
+
     /**
      * Public vendor storefront. When {@code eventId} is supplied (the planner
      * arrived here from one of their events), this also records/refreshes a

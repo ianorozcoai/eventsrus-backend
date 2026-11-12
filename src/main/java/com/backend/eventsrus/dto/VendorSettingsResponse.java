@@ -57,4 +57,5 @@ public class VendorSettingsResponse {
     private String refundTermsUrl;
 
     private String paymentInstructions;
+    private boolean searchVisible;
 }

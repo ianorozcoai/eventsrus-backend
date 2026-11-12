@@ -1,6 +1,7 @@
 package com.backend.eventsrus.dto;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,4 +21,7 @@ public class AdminPlannerListItemResponse {
     private String state;
     private Instant joinedAt;
     private int eventsCount;
+    private String signupSource;
+    /** Plain-words reasons an admin should take a second look (see SuspiciousSignup); empty when nothing looks off. */
+    private List<String> suspiciousReasons;
 }
