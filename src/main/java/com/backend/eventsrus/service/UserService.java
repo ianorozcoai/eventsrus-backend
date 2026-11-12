@@ -140,6 +140,8 @@ public class UserService {
                 .lastName(familyName == null || familyName.isBlank() ? null : familyName.trim())
                 .role(Role.PLANNER)
                 .signupIntent(declaredIntent != null ? declaredIntent : SignupIntent.PLANNER)
+                // Sign in with Apple only exists in the iPhone app.
+                .signupSource(com.backend.eventsrus.util.SignupSource.IOS)
                 .build();
         User saved;
         try {
