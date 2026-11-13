@@ -5,6 +5,7 @@ import com.backend.eventsrus.enums.PlanTier;
 import com.backend.eventsrus.enums.SystemSettingKey;
 import com.backend.eventsrus.exception.SubscriptionExpiredException;
 import com.backend.eventsrus.model.VendorSubscription;
+import com.backend.eventsrus.repository.BookingStatusEventRepository;
 import com.backend.eventsrus.repository.VendorSubscriptionRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -27,6 +28,7 @@ public class VendorPlanService {
 
     private final VendorSubscriptionRepository vendorSubscriptionRepository;
     private final SystemSettingService systemSettingService;
+    private final BookingStatusEventRepository bookingStatusEventRepository;
 
     public EffectivePlan getEffectivePlan(Long userId) {
         return vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
@@ -48,6 +50,12 @@ public class VendorPlanService {
      * adds the new plan's days on top of what was left instead of replacing them.
      */
     public int remainingDays(Long userId) {
+        // A free-until-bookings grant is not a number of days: paying early forfeits what is left of it
+        // (otherwise up to a year of free days would stack on top of the paid plan).
+        if (vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
+                .map(sub -> sub.getBookingsGoal() != null).orElse(false)) {
+            return 0;
+        }
         EffectivePlan plan = getEffectivePlan(userId);
         if (plan.plan() == null || plan.expiresAt() == null || !plan.expiresAt().isAfter(Instant.now())) {
             return 0;
@@ -61,6 +69,15 @@ public class VendorPlanService {
         if (periodEnd == null) {
             // Still APPROVAL_PENDING — PayPal hasn't confirmed a billing period yet.
             return new EffectivePlan(null, null, false, false, false, null, subscription.getBillingSource());
+        }
+        // Free until N counted bookings: the free period ends at the moment the Nth booking was counted,
+        // or at the deadline already stored as the period end, whichever is earlier. After that the
+        // normal grace period and paywall apply, exactly as for a date-based plan.
+        if (subscription.getBookingsGoal() != null && subscription.getBillingSource() == BillingSource.FREE_GRANT) {
+            Instant goalReachedAt = goalReachedAt(subscription);
+            if (goalReachedAt != null && goalReachedAt.isBefore(periodEnd)) {
+                periodEnd = goalReachedAt;
+            }
         }
         // Days carried over from an earlier plan the supplier paid over early (see remainingDays).
         if (subscription.getCarryOverDays() > 0) {
@@ -88,6 +105,30 @@ public class VendorPlanService {
                 now.plus(systemSettingService.getInt(SystemSettingKey.SUBSCRIPTION_WARNING_DAYS), ChronoUnit.DAYS));
         return new EffectivePlan(
                 subscription.getPlan(), periodEnd, expiringSoon, false, false, null, subscription.getBillingSource());
+    }
+
+    /** When the supplier's Nth counted booking was counted, or null while they are still below the goal. */
+    private Instant goalReachedAt(VendorSubscription subscription) {
+        int goal = subscription.getBookingsGoal();
+        java.util.List<Object> times = bookingStatusEventRepository
+                .countedBookingTimes(subscription.getUser().getId(), goal);
+        if (times.size() < goal) {
+            return null;
+        }
+        return toInstant(times.get(goal - 1));
+    }
+
+    private static Instant toInstant(Object value) {
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant();
+        }
+        if (value instanceof java.time.OffsetDateTime offset) {
+            return offset.toInstant();
+        }
+        throw new IllegalStateException("Unexpected timestamp type: " + value.getClass());
     }
 
     /**

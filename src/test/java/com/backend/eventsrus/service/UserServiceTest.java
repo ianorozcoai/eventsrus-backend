@@ -265,6 +265,46 @@ class UserServiceTest {
         }
 
         @Test
+        void theFreeUntilBookingsCodeStartsAGoalSubscriptionWithADeadlineInsteadOfTrialDays() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent("FREE3BOOKINGS")).thenReturn(false);
+            when(promoCodeService.isBookingsGoalCode("FREE3BOOKINGS")).thenReturn(true);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_MAX_DAYS)).thenReturn(365);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL)).thenReturn(3);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode("FREE3BOOKINGS"), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            VendorSubscription saved = captor.getValue();
+            assertThat(saved.getBillingSource()).isEqualTo(BillingSource.FREE_GRANT);
+            assertThat(saved.getBookingsGoal()).isEqualTo(3);
+            assertThat(saved.getBookingsGoalDeadline()).isEqualTo(saved.getCurrentPeriodEnd());
+            assertThat(saved.getCurrentPeriodEnd())
+                    .isAfter(Instant.now().plusSeconds(364L * 86400))
+                    .isBefore(Instant.now().plusSeconds(366L * 86400));
+            verify(vendorBillingHistoryService).recordFreeGrant(any(), any(), any(), eq(BillingSource.FREE_GRANT));
+        }
+
+        @Test
+        void aNormalSignUpHasNoBookingsGoal() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS)).thenReturn(0);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isNull();
+            assertThat(captor.getValue().getBookingsGoalDeadline()).isNull();
+        }
+
+        @Test
         void noPromoCodeStartsAPlanThatHasAlreadyEndedSoTheGracePeriodIsTheTrial() {
             User signingUp = plannerUser();
             when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(signingUp));

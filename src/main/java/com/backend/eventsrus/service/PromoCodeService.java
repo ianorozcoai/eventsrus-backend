@@ -27,10 +27,23 @@ public class PromoCodeService {
         if (rawPromoCode == null || rawPromoCode.isBlank()) {
             return false;
         }
+        if (isBookingsGoalCode(rawPromoCode)) {
+            // Valid, but it is NOT the plain free-trial code: the caller asks isBookingsGoalCode for it.
+            return false;
+        }
         String expected = systemSettingService.getString(SystemSettingKey.VENDOR_PROMO_CODE);
         if (!rawPromoCode.trim().equalsIgnoreCase(expected)) {
             throw new InvalidPromoCodeException("That promo code isn't valid.");
         }
         return true;
+    }
+
+    /** True when the code is the "free until N bookings" code (SystemSettingKey.VENDOR_PROMO_CODE_BOOKINGS). */
+    public boolean isBookingsGoalCode(String rawPromoCode) {
+        if (rawPromoCode == null || rawPromoCode.isBlank()) {
+            return false;
+        }
+        String expected = systemSettingService.getString(SystemSettingKey.VENDOR_PROMO_CODE_BOOKINGS);
+        return expected != null && !expected.isBlank() && rawPromoCode.trim().equalsIgnoreCase(expected.trim());
     }
 }

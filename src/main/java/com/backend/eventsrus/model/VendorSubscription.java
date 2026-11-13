@@ -47,6 +47,17 @@ public class VendorSubscription extends BaseEntity {
     @Column(name = "carry_over_days", nullable = false)
     private int carryOverDays = 0;
 
+    /**
+     * "Free until N counted bookings" (promo code FREE3BOOKINGS): while set, this free grant stays
+     * live until the supplier has this many counted bookings, or until bookingsGoalDeadline.
+     * Null for every normal, date-based subscription.
+     */
+    @Column(name = "bookings_goal")
+    private Integer bookingsGoal;
+
+    @Column(name = "bookings_goal_deadline")
+    private Instant bookingsGoalDeadline;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PlanTier plan;

@@ -77,7 +77,23 @@ public enum SystemSettingKey {
             "Vendor Promo Code",
             "Code a new vendor can enter at onboarding instead of paying - grants the full free trial (see Vendor free trial length) with no paywall.",
             "FREE3M",
-            false);
+            false),
+    VENDOR_PROMO_CODE_BOOKINGS(
+            "vendor-promo-code-bookings",
+            "Vendor Promo Code: free until bookings",
+            "Code a new vendor can enter at onboarding for free PRO until they have the number of counted bookings set below (a booking counts once the planner submits payment), or until the maximum days below, whichever comes first.",
+            "FREE3BOOKINGS",
+            false),
+    VENDOR_PROMO_BOOKINGS_GOAL(
+            "vendor-promo-bookings-goal",
+            "Free until bookings: number of bookings",
+            "How many counted bookings end the free period for a supplier who signed up with the free-until-bookings promo code.",
+            "3"),
+    VENDOR_PROMO_BOOKINGS_MAX_DAYS(
+            "vendor-promo-bookings-max-days",
+            "Free until bookings: maximum days",
+            "The free period for the free-until-bookings promo code never lasts longer than this many days, even if the supplier has fewer bookings.",
+            "365");
 
     private final String key;
     private final String label;

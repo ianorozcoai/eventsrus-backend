@@ -240,6 +240,8 @@ public class UserService {
         // see PromoCodeService. promoApplied decides below whether this
         // vendor gets the full free trial or has to pay/skip instead.
         boolean promoApplied = promoCodeService.isValidIfPresent(request.getPromoCode());
+        // The "free until N counted bookings" code: no trial days, the subscription carries a bookings goal instead.
+        boolean bookingsGoalPromo = promoCodeService.isBookingsGoalCode(request.getPromoCode());
 
         VendorProfile profile = vendorProfileRepository.findByUserId(user.getId())
                 .orElseGet(() -> VendorProfile.builder().user(user).build());
@@ -329,10 +331,17 @@ public class UserService {
         // trial on top of it. The plan-selection paywall only appears once it ends.
         int trialDays = promoApplied
                 ? systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS)
-                : Math.max(0, systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS));
+                : bookingsGoalPromo
+                        ? 0 // the free-until-bookings subscription below has its own deadline instead of trial days
+                        : Math.max(0, systemSettingService.getInt(SystemSettingKey.VENDOR_DEFAULT_TRIAL_DAYS));
         if (!vendorSubscriptionRepository.existsByUserId(user.getId())) {
             Instant now = Instant.now();
-            Instant trialEnd = now.plus(trialDays, ChronoUnit.DAYS);
+            // Goal mode: the free period runs until the supplier has the goal number of counted bookings,
+            // but never past the maximum days (see VendorPlanService).
+            Instant trialEnd = bookingsGoalPromo
+                    ? now.plus(Math.max(1, systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_MAX_DAYS)),
+                            ChronoUnit.DAYS)
+                    : now.plus(trialDays, ChronoUnit.DAYS);
             VendorSubscription subscription = vendorSubscriptionRepository.save(
                     VendorSubscription.builder()
                             .user(user)
@@ -341,9 +350,13 @@ public class UserService {
                             .plan(PlanTier.PRO)
                             .billingSource(BillingSource.FREE_GRANT)
                             .status(SubscriptionStatus.ACTIVE)
+                            .bookingsGoal(bookingsGoalPromo
+                                    ? Math.max(1, systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL))
+                                    : null)
+                            .bookingsGoalDeadline(bookingsGoalPromo ? trialEnd : null)
                             .build());
             // A 0-day grant (the grace period is the trial) is not worth a billing-history line.
-            if (trialDays > 0) {
+            if (trialDays > 0 || bookingsGoalPromo) {
                 vendorBillingHistoryService.recordFreeGrant(subscription, now, trialEnd, BillingSource.FREE_GRANT);
             }
             // The new supplier is welcomed once, told about the trial and offered to subscribe now.
