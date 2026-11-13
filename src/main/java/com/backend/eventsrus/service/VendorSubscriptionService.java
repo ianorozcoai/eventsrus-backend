@@ -232,6 +232,7 @@ public class VendorSubscriptionService {
         Optional<VendorSubscription> gcashRow = findGcashSubscription(userId);
         boolean gcashAwaitingVerification = gcashRow.map(sub -> sub.getStatus() == SubscriptionStatus.PAYMENT_VERIFICATION).orElse(false);
         boolean gcashRejected = gcashRow.map(sub -> sub.getStatus() == SubscriptionStatus.PAYMENT_REJECTED).orElse(false);
+        Optional<VendorPlanService.BookingsGoal> bookingsGoal = vendorPlanService.getBookingsGoal(userId);
         return SubscriptionStatusResponse.builder()
                 .userId(userId)
                 .plan(effectivePlan.plan())
@@ -254,6 +255,8 @@ public class VendorSubscriptionService {
                 .gcashRejectionReason(gcashRejected ? gcashRow.get().getRejectionReason() : null)
                 .showWelcomePopup(computeShowWelcomePopup(userId, effectivePlan, gcashAwaitingVerification))
                 .showTrialWelcome(computeShowTrialWelcome(userId, effectivePlan))
+                .bookingsGoal(bookingsGoal.map(VendorPlanService.BookingsGoal::goal).orElse(null))
+                .bookingsGoalReached(bookingsGoal.map(VendorPlanService.BookingsGoal::reached).orElse(null))
                 .build();
     }
 

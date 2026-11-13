@@ -199,4 +199,24 @@ class VendorPlanServiceTest {
 
         verifyNoInteractions(bookingStatusEventRepository);
     }
+
+    @Test
+    void bookingsGoalInfoShowsTheGoalAndWhetherItWasReached() {
+        goalSubscription(Instant.now().plus(300, ChronoUnit.DAYS), 3);
+        when(bookingStatusEventRepository.countedBookingTimes(USER_ID, 3))
+                .thenReturn(List.<Object>of(Instant.now().minus(2, ChronoUnit.DAYS)));
+        assertThat(service.getBookingsGoal(USER_ID)).contains(new VendorPlanService.BookingsGoal(3, false));
+
+        when(bookingStatusEventRepository.countedBookingTimes(USER_ID, 3)).thenReturn(List.<Object>of(
+                Instant.now().minus(5, ChronoUnit.DAYS), Instant.now().minus(4, ChronoUnit.DAYS),
+                Instant.now().minus(1, ChronoUnit.DAYS)));
+        assertThat(service.getBookingsGoal(USER_ID)).contains(new VendorPlanService.BookingsGoal(3, true));
+    }
+
+    @Test
+    void aNormalPlanHasNoBookingsGoalInfo() {
+        latest(Instant.now().plus(30, ChronoUnit.DAYS), 0);
+
+        assertThat(service.getBookingsGoal(USER_ID)).isEmpty();
+    }
 }

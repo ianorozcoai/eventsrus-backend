@@ -103,7 +103,7 @@ class SubscriptionReminderServiceTest {
 
         ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
         verify(smsService).sendSubscriptionReminder(any(), message.capture(), any());
-        assertThat(message.getValue()).contains("free trial ends in 14 days");
+        assertThat(message.getValue()).contains("free access ends in 14 days");
         ArgumentCaptor<SubscriptionReminder> saved = ArgumentCaptor.forClass(SubscriptionReminder.class);
         verify(subscriptionReminderRepository, org.mockito.Mockito.times(2)).save(saved.capture());
         assertThat(saved.getAllValues()).extracting(SubscriptionReminder::getChannel).containsExactlyInAnyOrder("SMS", "PUSH");
@@ -115,7 +115,7 @@ class SubscriptionReminderServiceTest {
         verify(notificationService).notify(
                 any(), org.mockito.ArgumentMatchers.eq(NotificationType.SUBSCRIPTION_RENEWAL_REMINDER),
                 title.capture(), any(), org.mockito.ArgumentMatchers.eq("SUBSCRIPTION"), any());
-        assertThat(title.getValue()).isEqualTo("Your free trial ends in 14 days");
+        assertThat(title.getValue()).isEqualTo("Your free access ends in 14 days");
     }
 
     @Test

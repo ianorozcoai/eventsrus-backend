@@ -130,7 +130,7 @@ public class SubscriptionReminderService {
 
     static String titleFor(boolean freeTrial, int daysLeft) {
         String days = daysLeft + (daysLeft == 1 ? " day" : " days");
-        return freeTrial ? "Your free trial ends in " + days : "Your PRO access ends in " + days;
+        return freeTrial ? "Your free access ends in " + days : "Your PRO access ends in " + days;
     }
 
     static String bodyFor(boolean freeTrial) {
@@ -168,7 +168,7 @@ public class SubscriptionReminderService {
         String days = daysLeft + (daysLeft == 1 ? " day" : " days");
         String when = endDate.format(DATE);
         return freeTrial
-                ? "EventsRUs: your free trial ends in " + days + " (" + when
+                ? "EventsRUs: your free access ends in " + days + " (" + when
                         + "). Choose a plan in the app to keep your supplier tools."
                 : "EventsRUs: your PRO access ends in " + days + " (" + when
                         + "). Renew in the app to keep your supplier tools.";

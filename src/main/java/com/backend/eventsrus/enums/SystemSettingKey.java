@@ -80,19 +80,19 @@ public enum SystemSettingKey {
             false),
     VENDOR_PROMO_CODE_BOOKINGS(
             "vendor-promo-code-bookings",
-            "Vendor Promo Code: free until bookings",
-            "Code a new vendor can enter at onboarding for free PRO until they have the number of counted bookings set below (a booking counts once the planner submits payment), or until the maximum days below, whichever comes first.",
+            "Vendor promo code: free until bookings (optional)",
+            "Optional code with the same effect as the default free-access rule below, kept so earlier outreach emails still work. A new supplier does not need any code: the default rule applies to everyone.",
             "FREE3BOOKINGS",
             false),
     VENDOR_PROMO_BOOKINGS_GOAL(
             "vendor-promo-bookings-goal",
-            "Free until bookings: number of bookings",
-            "How many counted bookings end the free period for a supplier who signed up with the free-until-bookings promo code.",
+            "Free access: number of bookings",
+            "New suppliers have free PRO until they have this many counted bookings (a booking counts once the planner submits payment), or until the maximum days below, whichever comes first. Set to 0 to switch the rule off and go back to the date-based trial (default trial days plus the grace period). A supplier who enters the free-trial promo code keeps that code's date-based trial.",
             "3"),
     VENDOR_PROMO_BOOKINGS_MAX_DAYS(
             "vendor-promo-bookings-max-days",
-            "Free until bookings: maximum days",
-            "The free period for the free-until-bookings promo code never lasts longer than this many days, even if the supplier has fewer bookings.",
+            "Free access: maximum days",
+            "The free-until-bookings access never lasts longer than this many days, even if the supplier has fewer bookings. After it, the normal grace period applies.",
             "365");
 
     private final String key;

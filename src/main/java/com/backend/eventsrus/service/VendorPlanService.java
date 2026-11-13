@@ -107,6 +107,20 @@ public class VendorPlanService {
                 subscription.getPlan(), periodEnd, expiringSoon, false, false, null, subscription.getBillingSource());
     }
 
+    /** goal = the number of counted bookings the free access runs until; reached = the supplier has that many. */
+    public record BookingsGoal(int goal, boolean reached) {
+    }
+
+    /**
+     * Present only for a supplier whose latest subscription is a free grant that runs "until N counted bookings"
+     * (see computeFrom). The website and apps use it to word the free access without a day count.
+     */
+    public java.util.Optional<BookingsGoal> getBookingsGoal(Long userId) {
+        return vendorSubscriptionRepository.findFirstByUserIdOrderByCurrentPeriodStartDesc(userId)
+                .filter(sub -> sub.getBookingsGoal() != null && sub.getBillingSource() == BillingSource.FREE_GRANT)
+                .map(sub -> new BookingsGoal(sub.getBookingsGoal(), goalReachedAt(sub) != null));
+    }
+
     /** When the supplier's Nth counted booking was counted, or null while they are still below the goal. */
     private Instant goalReachedAt(VendorSubscription subscription) {
         int goal = subscription.getBookingsGoal();

@@ -240,8 +240,13 @@ public class UserService {
         // see PromoCodeService. promoApplied decides below whether this
         // vendor gets the full free trial or has to pay/skip instead.
         boolean promoApplied = promoCodeService.isValidIfPresent(request.getPromoCode());
-        // The "free until N counted bookings" code: no trial days, the subscription carries a bookings goal instead.
-        boolean bookingsGoalPromo = promoCodeService.isBookingsGoalCode(request.getPromoCode());
+        // Free until N counted bookings (see VendorPlanService): the default for EVERY new supplier, with or
+        // without the optional FREE3BOOKINGS code. A supplier who used the FREE3M trial code keeps that code's
+        // date-based trial, and a goal setting of 0 switches the rule off (back to the date-based trial).
+        // No trial days here: the subscription carries a bookings goal and a deadline instead.
+        boolean bookingsGoalPromo = !promoApplied
+                && (promoCodeService.isBookingsGoalCode(request.getPromoCode())
+                        || systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL) > 0);
 
         VendorProfile profile = vendorProfileRepository.findByUserId(user.getId())
                 .orElseGet(() -> VendorProfile.builder().user(user).build());

@@ -58,4 +58,12 @@ public class SubscriptionStatusResponse {
     // null unless gcashRejected is true.
     private boolean gcashRejected;
     private String gcashRejectionReason;
+
+    /**
+     * Set while the supplier's free access runs "until N counted bookings" (any supplier who signed up under that
+     * rule): N, and whether they have reached it. Null for a normal date-based plan. Clients use it to say
+     * "Free until your first N bookings" instead of a day count. Older app versions ignore these two fields.
+     */
+    private Integer bookingsGoal;
+    private Boolean bookingsGoalReached;
 }

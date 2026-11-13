@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,6 +83,8 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
+        // The free-until-bookings default is switched off (goal 0) unless a test turns it on.
+        lenient().when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL)).thenReturn(0);
         userService = new UserService(
                 userRepository,
                 vendorProfileRepository,
@@ -286,6 +289,40 @@ class UserServiceTest {
                     .isAfter(Instant.now().plusSeconds(364L * 86400))
                     .isBefore(Instant.now().plusSeconds(366L * 86400));
             verify(vendorBillingHistoryService).recordFreeGrant(any(), any(), any(), eq(BillingSource.FREE_GRANT));
+        }
+
+        @Test
+        void everyNewSupplierGetsTheFreeUntilBookingsRuleEvenWithoutAnyCode() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL)).thenReturn(3);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_MAX_DAYS)).thenReturn(365);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode(null), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isEqualTo(3);
+            assertThat(captor.getValue().getBookingsGoalDeadline())
+                    .isAfter(Instant.now().plusSeconds(364L * 86400))
+                    .isBefore(Instant.now().plusSeconds(366L * 86400));
+        }
+
+        @Test
+        void aSupplierWhoUsesTheFreeTrialCodeKeepsThatDateBasedTrialEvenWhenTheDefaultIsOn() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent("FREE3M")).thenReturn(true);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS)).thenReturn(180);
+
+            userService.becomeVendor("vendor@example.com", requestWithPromoCode("FREE3M"), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isNull();
         }
 
         @Test
