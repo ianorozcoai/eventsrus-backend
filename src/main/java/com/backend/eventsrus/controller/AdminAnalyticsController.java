@@ -31,7 +31,8 @@ public class AdminAnalyticsController {
     public record Labelled(String label, long count) {}
     public record Totals(
             long planners, long suppliers, long suppliersWithListing, long suppliersVerified,
-            long proSuppliers, long active7d, long active30d) {}
+            long proSuppliers, long active7d, long active30d,
+            long onFreeAccessOffer, long reachedFirstBookings) {}
     public record Funnel(
             long signups, long suppliers, long suppliersWithListing,
             long planners, long plannersWithEvent, long plannersWhoRequestedQuote,
@@ -65,7 +66,18 @@ public class AdminAnalyticsController {
                 + " WHERE " + REAL + " AND s.status = 'ACTIVE'");
         long a7 = one("SELECT count(*) FROM users u WHERE " + REAL + " AND u.last_login_at >= now() - interval '7 days'");
         long a30 = one("SELECT count(*) FROM users u WHERE " + REAL + " AND u.last_login_at >= now() - interval '30 days'");
-        return new Totals(planners, suppliers, withListing, verified, pro, a7, a30);
+        // Suppliers whose latest subscription is a free grant that runs "until N counted bookings", and how many of
+        // them already have N counted bookings (a booking counts once the planner submitted payment).
+        String latestOffer = "FROM vendor_subscriptions s JOIN users u ON u.id = s.user_id WHERE " + REAL
+                + " AND s.bookings_goal IS NOT NULL AND s.billing_source = 'FREE_GRANT'"
+                + " AND NOT EXISTS (SELECT 1 FROM vendor_subscriptions s2 WHERE s2.user_id = s.user_id"
+                + " AND s2.current_period_start > s.current_period_start)";
+        long onOffer = one("SELECT count(*) " + latestOffer);
+        long reached = one("SELECT count(*) " + latestOffer
+                + " AND (SELECT count(DISTINCT b.id) FROM bookings b JOIN booking_status_history h ON h.booking_id = b.id"
+                + " WHERE b.vendor_user_id = s.user_id AND h.to_status IN ('PAYMENT_SUBMITTED', 'BOOKED')"
+                + " AND b.status NOT IN ('PAYMENT_REJECTED', 'DECLINED')) >= s.bookings_goal");
+        return new Totals(planners, suppliers, withListing, verified, pro, a7, a30, onOffer, reached);
     }
 
     private Funnel funnel(int days) {

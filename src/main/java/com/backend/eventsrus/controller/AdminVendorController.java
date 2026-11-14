@@ -82,6 +82,8 @@ public class AdminVendorController {
                         .planOverdueSince(v.planOverdueSince())
                         .signupSource(v.signupSource())
                         .suspiciousReasons(SuspiciousSignup.reasons(v.phoneNumber(), v.contactEmail()))
+                        .bookingsGoal(v.bookingsGoal())
+                        .bookingsGoalReached(v.bookingsGoalReached())
                         .build())
                 .toList();
     }

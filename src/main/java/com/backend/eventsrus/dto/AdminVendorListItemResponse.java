@@ -55,4 +55,11 @@ public class AdminVendorListItemResponse {
     private String signupSource;
     /** Plain-words reasons an admin should take a second look (see SuspiciousSignup); empty when nothing looks off. */
     private List<String> suspiciousReasons;
+
+    /**
+     * Set when this supplier's free access runs "until the first N counted bookings" (the default rule for new
+     * suppliers): N, and whether they have reached it. Null for a normal date-based plan.
+     */
+    private Integer bookingsGoal;
+    private Boolean bookingsGoalReached;
 }

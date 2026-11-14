@@ -404,6 +404,8 @@ public class UserService {
         return vendorProfileRepository.findAll().stream()
                 .map(profile -> {
                     VendorPlanService.EffectivePlan plan = vendorPlanService.getEffectivePlan(profile.getUser().getId());
+                    java.util.Optional<VendorPlanService.BookingsGoal> offer =
+                            vendorPlanService.getBookingsGoal(profile.getUser().getId());
                     return new AdminVendorListItem(
                         profile.getUser().getId(),
                         profile.getBusinessName(),
@@ -438,7 +440,9 @@ public class UserService {
                         plan.expired(),
                         plan.inGracePeriod(),
                         plan.expiresAt(),
-                        profile.getUser().getSignupSource());
+                        profile.getUser().getSignupSource(),
+                        offer.map(VendorPlanService.BookingsGoal::goal).orElse(null),
+                        offer.map(VendorPlanService.BookingsGoal::reached).orElse(null));
                 })
                 .sorted(java.util.Comparator.comparing(AdminVendorListItem::createdAt).reversed())
                 .toList();
@@ -828,7 +832,9 @@ public class UserService {
             boolean planExpired,
             boolean planInGracePeriod,
             Instant planOverdueSince,
-            String signupSource) {
+            String signupSource,
+            Integer bookingsGoal,
+            Boolean bookingsGoalReached) {
     }
 
     public record AdminIncompleteVendorSignup(
