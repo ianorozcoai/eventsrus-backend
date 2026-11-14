@@ -32,7 +32,7 @@ public class AdminAnalyticsController {
     public record Totals(
             long planners, long suppliers, long suppliersWithListing, long suppliersVerified,
             long proSuppliers, long active7d, long active30d,
-            long onFreeAccessOffer, long reachedFirstBookings) {}
+            long onFreeAccessOffer, long reachedFirstBookings, long payingSuppliers) {}
     public record Funnel(
             long signups, long suppliers, long suppliersWithListing,
             long planners, long plannersWithEvent, long plannersWhoRequestedQuote,
@@ -77,7 +77,11 @@ public class AdminAnalyticsController {
                 + " AND (SELECT count(DISTINCT b.id) FROM bookings b JOIN booking_status_history h ON h.booking_id = b.id"
                 + " WHERE b.vendor_user_id = s.user_id AND h.to_status IN ('PAYMENT_SUBMITTED', 'BOOKED')"
                 + " AND b.status NOT IN ('PAYMENT_REJECTED', 'DECLINED')) >= s.bookings_goal");
-        return new Totals(planners, suppliers, withListing, verified, pro, a7, a30, onOffer, reached);
+        // Suppliers who actually pay: a real payment source (not a free grant), active, still inside the paid period.
+        long paying = one("SELECT count(DISTINCT s.user_id) FROM vendor_subscriptions s JOIN users u ON u.id = s.user_id WHERE "
+                + REAL + " AND s.status = 'ACTIVE' AND s.billing_source IN ('PAYPAL', 'GCASH', 'GOOGLE_PLAY', 'APP_STORE')"
+                + " AND s.current_period_end > now()");
+        return new Totals(planners, suppliers, withListing, verified, pro, a7, a30, onOffer, reached, paying);
     }
 
     private Funnel funnel(int days) {
@@ -127,8 +131,10 @@ public class AdminAnalyticsController {
                 (rs, i) -> new Labelled(rs.getString("label"), rs.getLong("c")));
     }
 
+    /** A supplier can have several categories, so each category counts once per supplier that has it. */
     private List<Labelled> suppliersByBusinessType() {
-        return jdbc.query("SELECT coalesce(vp.business_type, 'UNSET') AS label, count(*) AS c FROM vendor_profiles vp JOIN users u ON u.id = vp.user_id"
+        return jdbc.query("SELECT bt.business_type AS label, count(DISTINCT vp.id) AS c FROM vendor_business_types bt"
+                + " JOIN vendor_profiles vp ON vp.id = bt.vendor_profile_id JOIN users u ON u.id = vp.user_id"
                 + " WHERE " + REAL + " GROUP BY 1 ORDER BY c DESC",
                 (rs, i) -> new Labelled(rs.getString("label"), rs.getLong("c")));
     }
