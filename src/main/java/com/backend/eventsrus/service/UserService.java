@@ -244,7 +244,15 @@ public class UserService {
         // without the optional FREE3BOOKINGS code. A supplier who used the FREE3M trial code keeps that code's
         // date-based trial, and a goal setting of 0 switches the rule off (back to the date-based trial).
         // No trial days here: the subscription carries a bookings goal and a deadline instead.
+        // Venues are the exception (Ian, 2026-11-17): a supplier who lists the Venue business type gets a flat
+        // free year (VENDOR_VENUE_FREE_DAYS) whether or not they get any bookings, so the bookings rule is
+        // skipped for them. A setting of 0 puts venues back on the same rule as everyone else.
+        int venueFreeDays = request.getBusinessTypes() != null
+                && request.getBusinessTypes().contains(BusinessType.VENUE)
+                ? Math.max(0, systemSettingService.getInt(SystemSettingKey.VENDOR_VENUE_FREE_DAYS))
+                : 0;
         boolean bookingsGoalPromo = !promoApplied
+                && venueFreeDays == 0
                 && (promoCodeService.isBookingsGoalCode(request.getPromoCode())
                         || systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL) > 0);
 
@@ -334,7 +342,10 @@ public class UserService {
         // immediately in VendorPlanService's grace period (SUBSCRIPTION_GRACE_PERIOD_DAYS)
         // - that grace period IS the free trial, which avoids stacking a separate
         // trial on top of it. The plan-selection paywall only appears once it ends.
-        int trialDays = promoApplied
+        int trialDays = venueFreeDays > 0
+                // A venue never gets less than its free year, even if it also entered the trial code.
+                ? Math.max(venueFreeDays, promoApplied ? systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS) : 0)
+                : promoApplied
                 ? systemSettingService.getInt(SystemSettingKey.VENDOR_TRIAL_DAYS)
                 : bookingsGoalPromo
                         ? 0 // the free-until-bookings subscription below has its own deadline instead of trial days

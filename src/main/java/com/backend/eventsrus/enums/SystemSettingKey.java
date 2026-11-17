@@ -93,6 +93,11 @@ public enum SystemSettingKey {
             "vendor-promo-bookings-max-days",
             "Free access: maximum days",
             "The free-until-bookings access never lasts longer than this many days, even if the supplier has fewer bookings. After it, the normal grace period applies.",
+            "365"),
+    VENDOR_VENUE_FREE_DAYS(
+            "vendor-venue-free-days",
+            "Free access for venues: days",
+            "A new supplier who lists the Venue business type gets this many days of free PRO from sign-up, whether or not they get any bookings (the 3-bookings rule does not apply to them). Every other supplier keeps the free-until-bookings rule above. Set to 0 to switch this off so venues follow the same rule as everyone else. After the days end the normal grace period applies.",
             "365");
 
     private final String key;

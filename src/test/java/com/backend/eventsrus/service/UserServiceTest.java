@@ -341,6 +341,87 @@ class UserServiceTest {
             assertThat(captor.getValue().getBookingsGoalDeadline()).isNull();
         }
 
+        private VendorOnboardingRequest requestWithBusinessTypes(com.backend.eventsrus.enums.BusinessType... types) {
+            VendorOnboardingRequest request = requestWithPromoCode(null);
+            request.setBusinessTypes(java.util.List.of(types));
+            return request;
+        }
+
+        @Test
+        void aVenueGetsAFlatFreeYearWithNoBookingsGoal() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_VENUE_FREE_DAYS)).thenReturn(365);
+
+            userService.becomeVendor("vendor@example.com",
+                    requestWithBusinessTypes(com.backend.eventsrus.enums.BusinessType.VENUE), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            VendorSubscription saved = captor.getValue();
+            assertThat(saved.getBillingSource()).isEqualTo(BillingSource.FREE_GRANT);
+            assertThat(saved.getBookingsGoal()).isNull();
+            assertThat(saved.getBookingsGoalDeadline()).isNull();
+            assertThat(saved.getCurrentPeriodEnd())
+                    .isAfter(Instant.now().plusSeconds(364L * 86400))
+                    .isBefore(Instant.now().plusSeconds(366L * 86400));
+            verify(vendorBillingHistoryService).recordFreeGrant(any(), any(), any(), eq(BillingSource.FREE_GRANT));
+        }
+
+        @Test
+        void aVenueListedAlongsideOtherServicesStillGetsTheFreeYear() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_VENUE_FREE_DAYS)).thenReturn(365);
+
+            userService.becomeVendor("vendor@example.com",
+                    requestWithBusinessTypes(com.backend.eventsrus.enums.BusinessType.CATERING,
+                            com.backend.eventsrus.enums.BusinessType.VENUE), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isNull();
+        }
+
+        @Test
+        void aNonVenueSupplierKeepsTheBookingsRuleEvenWhenTheVenueYearIsOn() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL)).thenReturn(3);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_MAX_DAYS)).thenReturn(365);
+
+            userService.becomeVendor("vendor@example.com",
+                    requestWithBusinessTypes(com.backend.eventsrus.enums.BusinessType.CATERING), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isEqualTo(3);
+        }
+
+        @Test
+        void aVenueFollowsTheBookingsRuleWhenTheVenueYearIsSwitchedOff() {
+            when(userRepository.findByEmail("vendor@example.com")).thenReturn(Optional.of(plannerUser()));
+            when(vendorProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
+            when(promoCodeService.isValidIfPresent(null)).thenReturn(false);
+            when(vendorSubscriptionRepository.existsByUserId(1L)).thenReturn(false);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_GOAL)).thenReturn(3);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_PROMO_BOOKINGS_MAX_DAYS)).thenReturn(365);
+            when(systemSettingService.getInt(SystemSettingKey.VENDOR_VENUE_FREE_DAYS)).thenReturn(0);
+
+            userService.becomeVendor("vendor@example.com",
+                    requestWithBusinessTypes(com.backend.eventsrus.enums.BusinessType.VENUE), noFiles());
+
+            ArgumentCaptor<VendorSubscription> captor = ArgumentCaptor.forClass(VendorSubscription.class);
+            verify(vendorSubscriptionRepository).save(captor.capture());
+            assertThat(captor.getValue().getBookingsGoal()).isEqualTo(3);
+        }
+
         @Test
         void noPromoCodeStartsAPlanThatHasAlreadyEndedSoTheGracePeriodIsTheTrial() {
             User signingUp = plannerUser();
