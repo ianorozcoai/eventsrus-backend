@@ -50,5 +50,45 @@ class SuspiciousSignupTest {
     void ordinaryEmailsWithDigitsAreNotFlagged() {
         assertThat(SuspiciousSignup.reasons("09209099332", "john1234@gmail.com")).isEmpty();
         assertThat(SuspiciousSignup.reasons("09209099332", "x.obscura.ph@gmail.com")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("09209099332", "adrianalbertsunodan28@gmail.com")).isEmpty();
+    }
+
+    @Test
+    void aNonPhilippineNumberIsFlagged() {
+        assertThat(SuspiciousSignup.reasons("+1 415 867 5309", "a@b.com"))
+                .containsExactly("Phone number is not a Philippine number");
+        assertThat(SuspiciousSignup.reasons("+44 7700 900461", "a@b.com"))
+                .containsExactly("Phone number is not a Philippine number");
+        assertThat(SuspiciousSignup.reasons("4158675309", "a@b.com"))
+                .containsExactly("Phone number is not a Philippine number");
+    }
+
+    @Test
+    void philippineMobileAndLandlineFormatsAreNotFlagged() {
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("+63 920 909 9332", "a@b.com")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("639209099332", "a@b.com")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("9209099332", "a@b.com")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("(02) 8123 4097", "a@b.com")).isEmpty();
+    }
+
+    @Test
+    void anEmailWithALongNumberOrSequentialDigitsIsFlagged() {
+        assertThat(SuspiciousSignup.reasons("09209099332", "jamiehansen00196@gmail.com")).hasSize(1);
+        assertThat(SuspiciousSignup.reasons("09209099332", "jamie_hansen_123456@gmail.com")).hasSize(1);
+        assertThat(SuspiciousSignup.reasons("09209099332", "user54321@gmail.com")).hasSize(1);
+        assertThat(SuspiciousSignup.reasons("09209099332", "mark.4821@gmail.com")).hasSize(1);
+    }
+
+    @Test
+    void aNameWithTheWordTestIsFlaggedButNotWordsThatJustContainIt() {
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com", "Test Catering", "Maria Santos"))
+                .containsExactly("Name contains the word \"test\"");
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com", "Maria Events", "Juan TEST"))
+                .containsExactly("Name contains the word \"test\"");
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com", "test1 Photos", null))
+                .containsExactly("Name contains the word \"test\"");
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com", "Latest Events", "Contest Master")).isEmpty();
+        assertThat(SuspiciousSignup.reasons("09209099332", "a@b.com", (String) null)).isEmpty();
     }
 }

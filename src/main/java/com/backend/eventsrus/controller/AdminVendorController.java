@@ -81,7 +81,7 @@ public class AdminVendorController {
                         .planInGracePeriod(v.planInGracePeriod())
                         .planOverdueSince(v.planOverdueSince())
                         .signupSource(v.signupSource())
-                        .suspiciousReasons(SuspiciousSignup.reasons(v.phoneNumber(), v.contactEmail()))
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.phoneNumber(), v.contactEmail(), v.businessName(), v.ownerName()))
                         .bookingsGoal(v.bookingsGoal())
                         .bookingsGoalReached(v.bookingsGoalReached())
                         .build())
@@ -102,7 +102,7 @@ public class AdminVendorController {
                         .reminderCount(v.reminderCount())
                         .lastReminderAt(v.lastReminderAt())
                         .signupSource(v.signupSource())
-                        .suspiciousReasons(SuspiciousSignup.reasons(v.mobileNumber(), v.email()))
+                        .suspiciousReasons(SuspiciousSignup.reasons(v.mobileNumber(), v.email(), v.firstName(), v.lastName()))
                         .build())
                 .toList();
     }
